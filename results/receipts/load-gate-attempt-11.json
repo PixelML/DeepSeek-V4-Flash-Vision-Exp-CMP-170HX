@@ -1,0 +1,9 @@
+{
+  "attempt": 11,
+  "ended_utc": "2026-08-31T19:06:30Z",
+  "failure_class": "DRAFT_LOADER_KEY_ERROR",
+  "symptom": "Worker_PP3 KeyError: model.layers.0.ffn.gate.bias_vl at dspark.py:459 during draft load after 48/48 main shards loaded",
+  "root_cause": "dspark.py fix was applied on the host vLLM tree but was not included in the container bind-mount list, so the image shipped the unpatched draft loader",
+  "remediation": "Add models/deepseek_v4/nvidia/dspark.py to launch-vision-exp-4card.sh MOUNTS; relaunch as attempt 12",
+  "main_model_result": "48/48 shards streamed; no main-loader errors; prior crash points all passed"
+}

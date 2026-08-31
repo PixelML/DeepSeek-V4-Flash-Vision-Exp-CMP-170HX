@@ -38,6 +38,7 @@ for f in config/speculative.py \
          v1/worker/gpu/model_runner.py \
          v1/worker/gpu/spec_decode/dspark/utils.py \
          models/deepseek_v4/nvidia/model.py \
+         models/deepseek_v4/nvidia/dspark.py \
          model_executor/layers/sparse_attn_indexer.py; do
   MOUNTS="$MOUNTS -v $R/$f:/vllm/vllm/$f:ro"
 done
