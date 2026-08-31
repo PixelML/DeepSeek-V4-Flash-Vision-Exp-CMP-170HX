@@ -1,0 +1,31 @@
+{
+  "model": "dsv4v",
+  "url": "http://127.0.0.1:8099",
+  "runs": {
+    "technical": {
+      "completion_tokens": 400,
+      "elapsed_s": 11.804,
+      "decode_tok_s": 33.89,
+      "text_preview": " Explain how the kernel decides which pages to evict and how it handles the case where a process accesses a page that has been swapped out to disk. Include a discussion of the interaction between the TLB and the page table walker, and how t"
+    },
+    "open-prose": {
+      "completion_tokens": 400,
+      "elapsed_s": 7.035,
+      "decode_tok_s": 56.86,
+      "text_preview": "\",\"title\":\"The Lighthouse Keeper's Discovery\",\"title_es\":\"El Descubrimiento del Farero\",\"title_hi\":\"\u0932\u093e\u0907\u091f\u0939\u093e\u0909\u0938 \u0915\u0940\u092a\u0930 \u0915\u0940 \u0916\u094b\u091c\",\"title_ar\":\"\u0627\u0643\u062a\u0634\u0627\u0641 \u062d\u0627\u0631\u0633 \u0627\u0644\u0645\u0646\u0627\u0631\u0629\",\"title_ru\":\"\u041e\u0442\u043a\u0440\u044b\u0442\u0438\u0435 \u0441\u043c\u043e\u0442\u0440\u0438\u0442\u0435\u043b\u044f \u043c\u0430\u044f\u043a\u0430\",\"title_ja\":\"\u706f\u53f0\u5b88\u306e\u767a\u898b\",\"title_zh\":\"\u706f\u5854\u770b\u5b88\u4eba\u7684\u53d1\u73b0\",\"tit"
+    },
+    "code": {
+      "completion_tokens": 400,
+      "elapsed_s": 4.661,
+      "decode_tok_s": 85.83,
+      "text_preview": " Use the following class names: RedBlackTree, Node, Color. Use the following method names: insert, delete, search, _insert_fix, _delete_fix, _rotate_left, _rotate_right, _transplant, _minimum, _maximum, _predecessor, _successor, _inorder_tr"
+    }
+  },
+  "aggregate_decode_tok_s": 51.06,
+  "ttft_s": 0.214,
+  "short_prompt_e2e": {
+    "elapsed_s": 1.12,
+    "completion_tokens": 32,
+    "text_preview": " (Note: They can be answered in any order.)\n * input: Which THREE primary colors? e.g. [Red, Green, Blue].\n */\n *"
+  }
+}

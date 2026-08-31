@@ -1,0 +1,27 @@
+{
+  "captured_utc": "2026-08-31T19:52Z-20:01Z",
+  "text_smoke_cold": {
+    "aggregate_decode_tok_s": 51.06,
+    "ttft_s": 0.214,
+    "per_prompt": {"technical": 33.89, "open-prose": 56.86, "code": 85.83}
+  },
+  "text_smoke_warm": {
+    "aggregate_decode_tok_s": 59.78,
+    "ttft_s": 0.163,
+    "per_prompt": {"technical": 45.16, "open-prose": 58.64, "code": 91.2}
+  },
+  "sustained_decode": {"completion_tokens": 800, "elapsed_s": 14.133, "decode_tok_s": 56.6, "prompt_tokens": 37},
+  "uncached_prefill": {"prompt_tokens": 2941, "completion_tokens": 1, "elapsed_s": 9.037, "prefill_tok_s": 325.5},
+  "vision_gate": {"status": "rejected", "http_code": 400, "error": "dsv4v is not a multimodal model", "classification": "text-only serve path on SM80 fork; vision tower not wired"},
+  "telemetry_loaded": {
+    "power_w_max": [114.07, 105.17, 120.26, 136.77],
+    "util_pct_max": [87, 81, 63, 38],
+    "temp_c_max": [42, 41, 41, 40],
+    "throttle_reasons": "none (0x0 all samples)"
+  },
+  "io_limitation": "checkpoint streamed from shared network model storage; eager load 19.3 min is the dominant cold-start cost",
+  "references": {
+    "ds4_0731_baseline_pp3_tok_s": 83.3,
+    "allover_4card_reference_tok_s": 98.1
+  }
+}
