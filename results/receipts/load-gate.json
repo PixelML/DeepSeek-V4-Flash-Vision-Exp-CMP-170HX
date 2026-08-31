@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "phase": "load_gate",
+  "gate": "bounded_four_card_startup",
+  "status": "RUNNING",
+  "observed_at_utc": "2026-08-31T18:11:00Z",
+  "single_change": "add safetensors F8_E8M0 dtype mapping",
+  "hypothesis": "the mapping permits the pinned checkpoint to pass weight deserialization on SM80",
+  "expected_signal": "all 48 shards load, KV allocation completes, and the engine reaches ready state",
+  "stop_condition": "first decisive incompatibility, capacity failure, accelerator fault, unsafe thermal state, or startup readiness",
+  "launch": {
+    "topology": "PP=4",
+    "layer_partition": [11, 11, 11, 10],
+    "tensor_parallel_size": 1,
+    "max_model_len": 16384,
+    "gpu_memory_utilization": 0.9,
+    "max_num_batched_tokens": 2048,
+    "max_num_seqs": 8,
+    "block_size": 256,
+    "kv_cache_dtype": "fp8",
+    "safetensors_load_strategy": "eager",
+    "speculative_method": "dspark",
+    "speculative_tokens": 6,
+    "row_chunk": 64
+  },
+  "observed": {
+    "runtime_image_content_id": "sha256:0e33b051516583ac8f9d2449a5d9889cadad8e43c121cc454d597c251986ddbe",
+    "runtime_source_revision": "unavailable from running image",
+    "container_restart_count": 0,
+    "shards_loaded": 48,
+    "shards_expected": 48,
+    "shard_stream_elapsed_seconds": 1103,
+    "gpu_processes": 4,
+    "gpu_memory_used_mib": [39714, 38544, 38556, 49086],
+    "gpu_core_temperature_c": [39, 38, 39, 38],
+    "gpu_power_w": [39.77, 43.31, 40.05, 40.79],
+    "process_states": ["S", "S", "S", "D"],
+    "recent_fault_events": 0
+  },
+  "result": "shard stream complete; engine readiness pending",
+  "evidence_class": "MEASURED_IN_PROGRESS",
+  "issue_receipt": "https://github.com/seanphan/pixelml/issues/70#issuecomment-5482492152"
+}

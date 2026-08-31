@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "phase": "load_gate",
+  "gate": "import_architecture",
+  "status": "PASS",
+  "observed_at_utc": "2026-08-31T16:39:20Z",
+  "checks": {
+    "cuda_context_all_four_devices": "PASS",
+    "sm80_matmul_all_four_devices": "PASS",
+    "custom_ops_import": "PASS",
+    "deepseek_v4_config_parse": "PASS",
+    "runtime_model_registry": "PASS"
+  },
+  "model_identity": {
+    "model_type": "deepseek_v4",
+    "architecture": "DeepseekV4ForCausalLM",
+    "num_nextn_predict_layers": 3
+  },
+  "known_warning": "runtime extension import warning is non-terminal until load or graph capture proves otherwise",
+  "issue_receipt": "https://github.com/seanphan/pixelml/issues/70#issuecomment-5481417916"
+}

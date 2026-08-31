@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "phase": "storage_preflight",
+  "status": "PASS",
+  "observed_at_utc": "2026-08-31T14:15:14Z",
+  "ownership": "exclusive four-card issue-70 lease",
+  "accelerators": {
+    "visible": 4,
+    "compute_processes": 0,
+    "memory_used_mib": [0, 0, 0, 0],
+    "core_temperature_c": [37, 37, 37, 37],
+    "memory_temperature_c_range": [41, 51],
+    "xid_or_hardware_error": false
+  },
+  "checkpoint": {
+    "source_class": "canonical shared model storage",
+    "filesystem_type": "network-backed",
+    "mount_mode": "read-write",
+    "repository_files": 82,
+    "safetensor_shards": 48,
+    "repository_bytes": 167831846872,
+    "bad_safetensor_headers": 0
+  },
+  "fast_tier_decision": "SKIP_STAGE",
+  "fast_tier_reason": "configured local tier is rotational and smaller than the checkpoint before safety margin",
+  "go_no_go": "GO_BOUNDED_COMPATIBILITY_GATE",
+  "issue_receipt": "https://github.com/seanphan/pixelml/issues/70#issuecomment-5479640763"
+}
