@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "experiment_id": "deepseek-v4-flash-vision-exp-cmp-170hx-2026-08-31",
+  "state": "RUNNING_LOAD_GATE",
+  "model": {
+    "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
+    "revision": "86f746b36186f0e567729a5c06a8c918caba82a9",
+    "declared_format": "FP8 e4m3, dynamic activations, 128x128 blocks",
+    "architecture": "DeepseekV4ForCausalLM with custom vision stack"
+  },
+  "hardware": {
+    "platform": "CMP 170HX",
+    "accelerator_count": 4,
+    "memory_gib_per_accelerator": 64,
+    "compute_capability": "8.0"
+  },
+  "runtime": {
+    "engine": "source-built SM80 vLLM fork",
+    "revision": null,
+    "revision_status": "source revision unavailable from running image",
+    "image_content_id": "sha256:0e33b051516583ac8f9d2449a5d9889cadad8e43c121cc454d597c251986ddbe",
+    "cuda_arch_list": "8.0"
+  },
+  "protocol": {
+    "max_model_len": 16384,
+    "max_num_batched_tokens": 2048,
+    "max_num_seqs": 8,
+    "block_size": 256,
+    "kv_cache_dtype": "fp8",
+    "speculative_method": "dspark",
+    "speculative_tokens": 6,
+    "sampling": "pending functional gate",
+    "fixed_concurrency_ladder": [1, 2, 4, 6, 8]
+  },
+  "evidence": [
+    "results/receipts/preflight.json",
+    "results/receipts/import-gate.json",
+    "results/receipts/load-gate.json"
+  ]
+}
