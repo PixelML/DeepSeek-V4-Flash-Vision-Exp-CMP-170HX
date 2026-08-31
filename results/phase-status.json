@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "current_phase": "load_gate",
-  "last_completed_gate": "import_architecture",
-  "current_command": "bounded PP=4 model load/startup; do not restart",
-  "blocker": "engine readiness pending after shard streaming",
-  "next_gate": "terminal startup verdict, then text functional smoke",
+  "current_phase": "publication",
+  "last_completed_gate": "measurements",
+  "current_command": "publish receipts, README, card; then ClipProxy wiring + live verification",
+  "blocker": "none",
+  "next_gate": "ClipProxy route wiring and live end-to-end verification",
   "phases": [
     {"id": "identity", "status": "COMPLETE"},
     {"id": "storage_preflight", "status": "PASS"},
-    {"id": "load_gate", "status": "RUNNING"},
-    {"id": "functional_gates", "status": "PENDING"},
-    {"id": "measurements", "status": "PENDING"},
+    {"id": "load_gate", "status": "PASS"},
+    {"id": "functional_gates", "status": "PASS"},
+    {"id": "measurements", "status": "PASS"},
     {"id": "publication", "status": "PENDING"}
   ]
 }
