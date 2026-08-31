@@ -5,17 +5,18 @@ import json
 import os
 import time
 import urllib.request
+from pathlib import Path
 
 URL = os.environ.get("DSV4_URL", "http://127.0.0.1:8099")
 MODEL = "dsv4v"
-IMG = "/library/models/deepseek-v4-flash-vision-exp/deepseek-ai-86f746b36186f0e567729a5c06a8c918caba82a9/inference/examples/images/carrots.jpeg"
+IMG = Path(os.environ["DSV4_VISION_IMAGE"])
 PROMPT = "What food is shown in this image? Answer in one short sentence."
 
 
 def main():
     with open(IMG, "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
-    receipt = {"model": MODEL, "image": "carrots.jpeg", "prompt": PROMPT}
+    receipt = {"model": MODEL, "image": IMG.name, "prompt": PROMPT}
     payload = {
         "model": MODEL,
         "messages": [{

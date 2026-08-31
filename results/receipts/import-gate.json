@@ -16,6 +16,5 @@
     "architecture": "DeepseekV4ForCausalLM",
     "num_nextn_predict_layers": 3
   },
-  "known_warning": "runtime extension import warning is non-terminal until load or graph capture proves otherwise",
-  "issue_receipt": "https://github.com/seanphan/pixelml/issues/70#issuecomment-5481417916"
+  "known_warning": "runtime extension import warning is non-terminal until load or graph capture proves otherwise"
 }

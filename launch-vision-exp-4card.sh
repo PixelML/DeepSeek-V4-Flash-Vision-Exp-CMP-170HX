@@ -6,13 +6,16 @@
 # the vision tower, so vision smoke uses a separate reference-inference path
 # or is recorded as unsupported. See RESULTS.md.
 set -euo pipefail
-IMG="${DSV4_IMG:-dsv4-vision:full}"
-MODEL="${DSV4_MODEL:-/library/models/deepseek-v4-flash-vision-exp/deepseek-ai-86f746b36186f0e567729a5c06a8c918caba82a9}"
-R="${DSV4_VLLM_SRC:-/home/ubuntu/repos/dsv4-vllm/vllm}"
+IMG="${DSV4_IMG:-pixelml-dsv4-vision-sm80:local}"
+MODEL="${DSV4_MODEL:?set DSV4_MODEL to the verified checkpoint directory}"
+R="${DSV4_VLLM_SRC:?set DSV4_VLLM_SRC to the pinned vLLM source directory}"
 MAXLEN="${DSV4_MAXLEN:-16384}"
 ROW_CHUNK="${DSV4_ROW_CHUNK:-64}"
 GPU_UTIL="${DSV4_GPU_UTIL:-0.90}"
-ST_PATCH="${DSV4_ST_PATCH:-/home/ubuntu/repos/dsv4-vision-exp-cmp170hx/patches/safetensors_torch.py}"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ST_PATCH="${DSV4_ST_PATCH:-$REPO_DIR/patches/safetensors_torch.py}"
+CONTAINER_NAME="${DSV4_CONTAINER_NAME:-pixelml-dsv4-vision-exp}"
+PORT="${DSV4_PORT:-8099}"
 SPEC='--speculative-config {"method":"dspark","num_speculative_tokens":6}'
 
 case "${1:-}" in
@@ -39,21 +42,21 @@ for f in config/speculative.py \
   MOUNTS="$MOUNTS -v $R/$f:/vllm/vllm/$f:ro"
 done
 
-docker stop -t 60 dsv4-vision >/dev/null 2>&1 || true
-docker rm dsv4-vision >/dev/null 2>&1 || true
+docker stop -t 60 "$CONTAINER_NAME" >/dev/null 2>&1 || true
+docker rm "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
-docker run -d --name dsv4-vision --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 \
+docker run -d --name "$CONTAINER_NAME" --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=0,1,2,3 \
   -e HF_HUB_OFFLINE=1 -e VLLM_WORKER_MULTIPROC_METHOD=spawn \
   -e VLLM_PP_LAYER_PARTITION=11,11,11,10 \
   -e DSV4_LOGITS_ROW_CHUNK="$ROW_CHUNK" \
   -v "$MODEL":/model:ro \
   $MOUNTS \
   -v "$ST_PATCH":/opt/venv/lib/python3.12/site-packages/safetensors/torch.py:ro \
-  --shm-size=16g -p 8099:8000 \
+  --shm-size=16g -p "$PORT":8000 \
   "$IMG" vllm serve /model --served-model-name dsv4v \
   --pipeline-parallel-size 4 --kv-cache-dtype fp8 --safetensors-load-strategy eager --block-size 256 \
   --max-model-len "$MAXLEN" --max-num-batched-tokens 2048 --trust-remote-code \
   --gpu-memory-utilization "$GPU_UTIL" --max-num-seqs 8 \
   --no-enable-flashinfer-autotune --tokenizer-mode deepseek_v4 \
   $SPEC
-echo "launched dsv4-vision on :8099 (PP4 11,11,11,10, maxlen $MAXLEN, spec dspark k=6)"
+echo "launched $CONTAINER_NAME on :$PORT (PP4 11,11,11,10, maxlen $MAXLEN, spec dspark k=6)"

@@ -38,6 +38,5 @@
     "recent_fault_events": 0
   },
   "result": "shard stream complete; engine readiness pending",
-  "evidence_class": "MEASURED_IN_PROGRESS",
-  "issue_receipt": "https://github.com/seanphan/pixelml/issues/70#issuecomment-5482492152"
+  "evidence_class": "MEASURED_IN_PROGRESS"
 }
