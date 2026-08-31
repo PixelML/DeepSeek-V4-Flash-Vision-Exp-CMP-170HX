@@ -1,0 +1,37 @@
+{
+  "experiment": "concurrency-ladder partition probing",
+  "node": "four-card CMP 170HX (SM80, 64 GiB each, 180 W cap)",
+  "model": "DeepSeek-V4-Flash-Vision-Exp rev 86f746b3 (FP8 checkpoint, text-only serve path)",
+  "runtime": "vLLM SM80 fork, PP4, DSpark speculative decoding k=6, kv-cache fp8, block-size 256",
+  "probes": [
+    {
+      "partition": "12,12,12,7",
+      "hypothesis": "allover326 reference layout: last rank carries lm_head + drafter",
+      "outcome": "FAIL exit 137 (killed after shard load completed; last-rank memory pressure)",
+      "served_requests": 0
+    },
+    {
+      "partition": "12,12,11,8",
+      "hypothesis": "shift one layer off the last rank",
+      "outcome": "BOOT_OK_HTTP_200 but engine died on FIRST warmup request: device-side assert on pipeline rank 3, EngineDeadError, request returned 500",
+      "traceback_class": "torch.AcceleratorError: CUDA error: device-side assert triggered",
+      "observed_at": "2026-08-31T22:54:21Z",
+      "scheduler_dump": "single running request, 6 scheduled speculative tokens, num_computed_tokens=426",
+      "served_requests": 0
+    },
+    {
+      "partition": "11,11,11,10",
+      "hypothesis": "attempt-12 known-good baseline partition (stable across hundreds of requests + ClipProxy live verification)",
+      "outcome": "STABLE through the full C1-C8 ladder (greedy, 400 completion tokens per request, warm engine). C16 wedge on the earlier run: indexSelectSmallIndex assert (srcIndex < srcSelectDimSize) in the draft-path embedding lookup, one software-caused Xid 43 (no hardware/ECC failure), engine restartable",
+      "measured_ladder": [
+        {"concurrency": 1, "aggregate_tok_s": 101.21},
+        {"concurrency": 2, "aggregate_tok_s": 114.68},
+        {"concurrency": 4, "aggregate_tok_s": 169.65},
+        {"concurrency": 8, "aggregate_tok_s": 133.95}
+      ],
+      "note": "C4 is the throughput sweet spot. C8 degrades versus C4 (max_num_seqs=8 with k=6 speculation saturates the scheduler); C16 exceeds the stable envelope and wedges the draft path."
+    }
+  ],
+  "conclusion": "Only the 11,11,11,10 partition is stable on this checkpoint/runtime combination. Alternative partitions fail before serving traffic. Concurrency sweet spot is C4 (~170 tok/s aggregate); sustained-service ceiling is C8; C16 is outside the stable envelope.",
+  "sanitized": true
+}

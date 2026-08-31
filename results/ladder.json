@@ -1,0 +1,39 @@
+{
+  "url": "http://127.0.0.1:8099",
+  "model": "dsv4v",
+  "max_tokens": 400,
+  "levels": [
+    {
+      "concurrency": 1,
+      "requests": 1,
+      "total_completion_tokens": 400,
+      "wall_s": 3.952,
+      "aggregate_tok_s": 101.21,
+      "mean_single_req_s": 3.951
+    },
+    {
+      "concurrency": 2,
+      "requests": 2,
+      "total_completion_tokens": 800,
+      "wall_s": 6.976,
+      "aggregate_tok_s": 114.68,
+      "mean_single_req_s": 5.463
+    },
+    {
+      "concurrency": 4,
+      "requests": 4,
+      "total_completion_tokens": 1600,
+      "wall_s": 9.431,
+      "aggregate_tok_s": 169.65,
+      "mean_single_req_s": 7.716
+    },
+    {
+      "concurrency": 8,
+      "requests": 8,
+      "total_completion_tokens": 3200,
+      "wall_s": 23.889,
+      "aggregate_tok_s": 133.95,
+      "mean_single_req_s": 21.088
+    }
+  ]
+}
