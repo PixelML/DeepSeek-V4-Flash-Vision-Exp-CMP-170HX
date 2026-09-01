@@ -1,19 +1,42 @@
-# DeepSeek-V4-Flash-Vision-Exp on 4× CMP 170HX
+# DeepSeek-V4-Flash-Vision-Exp on 4x CMP 170HX
 
-> **TL;DR — VIABLE TEXT-ONLY.** `deepseek-ai/DeepSeek-V4-Flash-Vision-Exp`
-> (rev `86f746b3`) serves text on four CMP 170HX cards (SM80, 64 GiB each) in a
-> pipeline-parallel 4 configuration: **59.78 tok/s warm aggregate decode**
-> (51.06 cold), **0.163 s warm TTFT** (0.214 s cold), **325.5 tok/s uncached
-> prefill**, after a 19.3 min eager model load from shared model storage
-> (~44 min cold start to ready). **Vision is unsupported in the SM80 fork** —
-> the vision tower is not wired, so image requests are rejected (HTTP 400) by
-> the text-only serve path.
+> **TL;DR - VISION PASS.** `deepseek-ai/DeepSeek-V4-Flash-Vision-Exp`
+> (rev `86f746b3`) now serves **real image inputs end to end** on four CMP
+> 170HX cards (SM80, 64 GiB each). The research lane ported the missing
+> multimodal path onto the SM80 stack (commits `b70923c`, `f4e9772`,
+> `5d0d1ca`) and passed all three endpoint gates on a private
+> OpenAI-compatible TP4 server (model id
+> `chimera-deepseek-v4-flash-vision-exp`): `/v1/models` 200, deterministic
+> text 200 (exact `OK`, 10.7 s), and a **real 64x64 gradient-image
+> completion 200** - the model described the gradient's dominant colors,
+> which appear nowhere in the prompt. Earlier text-only baseline (PP4,
+> DSpark k=6): 59.78 tok/s warm aggregate decode, 0.163 s warm TTFT,
+> 325.5 tok/s uncached prefill; vision-path throughput benchmarks land
+> after the authorized NVMe staging of the TP4 serving tree.
 
-Evidence: [experiment notebook](notebooks/cmp-170hx-experiment.ipynb) ·
-[measurement receipt](results/receipts/measurements.json) ·
-[benchmark card (HTML)](assets/benchmark-card.html) ·
+Evidence: [experiment notebook](notebooks/cmp-170hx-experiment.ipynb) |
+[vision-ready receipt](results/receipts/vision-ready.json) |
+[measurement receipt](results/receipts/measurements.json) |
+[benchmark card (HTML)](assets/benchmark-card.html) |
 [benchmark card (PNG)](assets/benchmark-card.png)
 
+## Vision-ready gates (2026-09-01, all PASS)
+
+| Gate | Result | Evidence |
+| --- | --- | --- |
+| `/v1/models` | 200, correct model id, `owned_by pixelml` | receipt above |
+| Deterministic text | 200 in 10.7 s, exact `OK`, 10 prompt / 2 completion tokens | receipt above |
+| Real image completion | 200, 135 prompt / 20 completion tokens, correct gradient-color description absent from prompt | receipt above |
+
+The decisive fix (`5d0d1ca`) routes image requests through the checkpoint's
+native multimodal encoder: one placeholder token inserted and one image
+record extracted per request (offline sanity 1+1 before boot). The two prior
+HTTP 500s were a validation-order defect and a token-stripping defect, both
+root-caused and receipted in the control issue.
+
+The private endpoint stays Tailscale-only; it is not wired into any public
+proxy. GPUs hold about 44.4 GiB/card at 38-39 C, no Xid/ECC events, zero
+restarts.
 ## Startup recipe
 
 The launch recipe lives in
