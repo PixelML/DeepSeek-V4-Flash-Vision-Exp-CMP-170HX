@@ -133,7 +133,7 @@
       "tests/kernels/attention/test_dsv4_fp8_sm80.py",
       "tests/kernels/attention/test_mqa_logits_triton.py"
     ],
-    "scope": "Minimal current-runner DSpark PP loading plus the exact c3046d1 SM80 Triton compatibility bundle and safety dispatch; no legacy direct relay. The Vision pull request's compiled MoE changes remain part of the source build.",
+    "scope": "Minimal current-runner DSpark PP loading plus the exact c3046d1 SM80 Triton compatibility bundle and architecture-aware safety dispatch; no legacy direct relay. The Vision pull request's compiled MoE changes remain part of the source build.",
     "vendored_bundle": {
       "source_revision": "c3046d1ebd2dae9b94ad2ef5f966ea153632251e",
       "fp8_sm80_sha256": "4ad3bd77073051c0cb2db2ef3d307ff5047e9a29dab3714fcc65843e87a7eb6e",

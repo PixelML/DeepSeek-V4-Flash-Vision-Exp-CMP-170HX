@@ -159,6 +159,49 @@ def test_scheduler_drafts_reach_persistent_batch(
             assert not line.startswith("                "), line
 
 
+def test_sparse_warmup_contract(texts: dict[str, str]) -> None:
+    """Require architecture-aware dispatch and explicit model head counts."""
+    sparse_ast = ast.parse(texts["sparse"])
+    sparse_class = next(
+        node
+        for node in sparse_ast.body
+        if isinstance(node, ast.ClassDef) and node.name == "SparseAttnIndexer"
+    )
+    init = next(
+        node
+        for node in sparse_class.body
+        if isinstance(node, ast.FunctionDef) and node.name == "__init__"
+    )
+    assert "num_heads" in [argument.arg for argument in init.args.args]
+    require(
+        texts["sparse"],
+        "use_deep_gemm = is_deep_gemm_supported()",
+        "not is_deep_gemm_supported()",
+        "warmup_fp8_mqa_logits_triton(self.num_heads, head_dim, device)",
+    )
+    assert "has_deep_gemm" not in texts["sparse"]
+
+    expected = {
+        "deepseek_v2": "self.n_head",
+        "deepseek_v32": "self.n_head",
+        "deepseek_v32_rocm": "self.indexer.n_head",
+        "deepseek_v4": "self.n_head",
+        "hy_v4": "self.n_head",
+    }
+    for label, expression in expected.items():
+        calls = [
+            node
+            for node in ast.walk(ast.parse(texts[label]))
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "SparseAttnIndexer"
+        ]
+        assert len(calls) == 1, f"expected one SparseAttnIndexer call in {label}"
+        keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
+        assert "num_heads" in keywords, f"missing num_heads keyword in {label}"
+        assert ast.unparse(keywords["num_heads"]) == expression
+
+
 def main() -> None:
     """Validate the exact pin, patch state, syntax, and focused contracts."""
     parser = argparse.ArgumentParser()
@@ -207,14 +250,6 @@ def main() -> None:
         "self.num_heads",
         "The SM80 Triton sparse-indexer fallback supports FP8 KV cache only",
     )
-    for label in (
-        "deepseek_v2",
-        "deepseek_v32",
-        "deepseek_v32_rocm",
-        "deepseek_v4",
-        "hy_v4",
-    ):
-        require(texts[label], "SparseAttnIndexer(", "n_head")
     assert "Sparse Attention Indexer CUDA op requires DeepGEMM" not in texts["sparse"]
     require(
         texts["mqa_logits"],
@@ -230,6 +265,7 @@ def main() -> None:
         "def _f32_to_e4m3fn_u8(",
     )
     test_ordered_topk(texts["sparse"])
+    test_sparse_warmup_contract(texts)
     test_scheduler_drafts_reach_persistent_batch(
         texts["runner"], texts["input_batch"]
     )

@@ -23,7 +23,8 @@ The patch makes five coordinated changes:
 4. The byte-identical `c3046d1` SM80 FP8 compatibility module and 578-line
    Triton MQA prefill/decode implementation are restored together with their
    focused upstream tests.
-5. The sparse-index path dispatches to that fallback without DeepGEMM, primes
+5. The sparse-index path uses the architecture-aware DeepGEMM support gate,
+   dispatches to that fallback on SM80, primes
    autotune before capture using each model's explicit index head count,
    preserves ordered Torch prefill top-k output, bounds the prefill logits
    transient by row chunking, and keeps the persistent decode selector
