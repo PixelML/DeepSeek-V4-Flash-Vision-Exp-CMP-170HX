@@ -154,8 +154,11 @@ def run_group(args: argparse.Namespace, concurrency: int) -> dict:
         "error_classes": sorted(errors),
     }
     if complete:
-        denominator = requests[0]["elapsed_s"] if concurrency == 1 else level_wall
-        result["aggregate_decode_tok_s"] = round(success_tokens / denominator, 6)
+        result["aggregate_decode_tok_s"] = (
+            requests[0]["request_tok_s"]
+            if concurrency == 1
+            else round(success_tokens / level_wall, 6)
+        )
     return result
 
 
