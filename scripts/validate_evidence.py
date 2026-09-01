@@ -21,7 +21,9 @@ PHASE_ORDER = [
 ]
 FORBIDDEN = {
     "private_ipv4": re.compile(r"\b(?:10|169\.254|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b"),
-    "private_path": re.compile(r"/(?:home|Users|library|models|mnt|srv)/"),
+    "private_path": re.compile(
+        r"(?<![A-Za-z0-9._-])/(?:home|Users|library|models|mnt|srv)/"
+    ),
     "tracker_url": re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/issues/\d+"),
     "private_tracker_name": re.compile("(?i)" + "seanphan" + r"/pixelml"),
     "private_issue_shorthand": re.compile(
@@ -75,6 +77,9 @@ def main() -> None:
         "research/vision-port/openai_server.py",
         "docs/VLLM-VISION-INTEGRATION.md",
         "scripts/validate_vllm_vision_plan.py",
+        "scripts/test_vllm_forward_port.py",
+        "patches/vllm-pr-54566/0001-cmp-sm80-pp-dspark.patch",
+        "patches/vllm-pr-54566/README.md",
         "scripts/verify_private_server.py",
     )
     for relative in required_files:

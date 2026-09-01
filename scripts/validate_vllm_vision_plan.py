@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -44,7 +45,7 @@ def validate_source_tree(source_root: Path, plan: dict) -> None:
     require_symbols(
         source_root,
         "csrc/libtorch_stable/moe/topk_softplus_sqrt_kernels.cu",
-        ("bias_vl", "vocab_size"),
+        ("bias_vl", "image_sentinel_lo"),
     )
     require_symbols(
         source_root,
@@ -61,6 +62,21 @@ def validate_source_tree(source_root: Path, plan: dict) -> None:
         "vllm/models/deepseek_v4/nvidia/model.py",
         ("get_mtp_target_hidden_states",),
     )
+    bundle = plan["forward_port"]["vendored_bundle"]
+    for relative, key in (
+        ("vllm/v1/attention/ops/fp8_sm80.py", "fp8_sm80_sha256"),
+        ("vllm/v1/attention/ops/mqa_logits_triton.py", "mqa_logits_triton_sha256"),
+        (
+            "tests/kernels/attention/test_dsv4_fp8_sm80.py",
+            "test_fp8_sm80_sha256",
+        ),
+        (
+            "tests/kernels/attention/test_mqa_logits_triton.py",
+            "test_mqa_logits_triton_sha256",
+        ),
+    ):
+        actual = hashlib.sha256((source_root / relative).read_bytes()).hexdigest()
+        assert actual == bundle[key], f"vendored source mismatch: {relative}"
 
 
 def main() -> None:
@@ -89,9 +105,12 @@ def main() -> None:
     assert candidates["pp4_k3"]["adaptive_verification"] is False
     assert candidates["pp4_k6"]["status"] == "FALLBACK_ONLY"
     assert candidates["pp4_k5"]["status"] == "FORBIDDEN_UNLESS_VALIDATOR_PASS"
+    assert plan["forward_port"]["vendored_bundle"]["source_revision"] == (
+        "c3046d1ebd2dae9b94ad2ef5f966ea153632251e"
+    )
     assert {item["path"] for item in plan["pre_live_blockers"]} == {
         "vllm/v1/worker/gpu/spec_decode/dspark/utils.py",
-        "vllm/v1/worker/gpu/pp_utils.py",
+        "vllm/v1/worker/gpu_model_runner.py",
         "vllm/config/speculative.py",
         "vllm/model_executor/layers/sparse_attn_indexer.py",
     }

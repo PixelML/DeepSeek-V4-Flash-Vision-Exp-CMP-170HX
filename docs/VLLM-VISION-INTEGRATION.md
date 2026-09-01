@@ -29,11 +29,11 @@ head movement is recorded rather than silently consumed.
 | Area | Vision head | CMP control | Required reconciliation |
 | --- | --- | --- | --- |
 | Model | Multimodal wrapper with PP and Eagle3 interfaces | Text-only model path | Keep the complete Vision wrapper and validate image-encoder placement under PP4 |
-| MoE routing | Adds `bias_vl` and `vocab_size` to Python/C++/CUDA operator contract | Older compiled ABI | Exact source build; never mount only Python files |
-| Runner | `vllm/v1/worker/gpu_model_runner.py` | PP patch targets the former nested runner path | Forward-port relay behavior to the current API |
-| Sparse attention | Active Vision changes are in `sparse_swa.py` | SM80 top-k fallback targets the older indexer path | Audit the live call path, then port only the required safety fallback |
+| MoE routing | Adds `bias_vl` and `image_sentinel_lo` to the Python/C++/CUDA operator contract | Older compiled ABI | Exact source build; never mount only Python files |
+| Runner | `vllm/v1/worker/gpu_model_runner.py` already consumes scheduler-provided draft IDs on every rank | PP patch targets the former nested runner path | Prove current scheduler propagation; do not port the old direct relay unless that test fails |
+| Sparse attention | The Vision head hard-requires DeepGEMM and removed the prior Triton MQA module | Exact `c3046d1` modules and tests prove the SM80 prefill/decode fallback | Vendor both immutable modules; dispatch FP8 KV cache through Triton, warm before capture, and retain ordered top-k plus row chunking |
 | MTP | Three next-token prediction layers and Vision-aware hidden-state plumbing | Historical checkpoint used one MTP layer | Validate three-layer shapes before any full load |
-| PP DSpark | Vision declares PP support | Control adds broadcast/receive/pad/scatter relay | Forward-port the semantics and validate on CPU before build |
+| PP DSpark | Current runner propagates scheduled draft IDs, but DSpark loading rejects PP | Control adds a direct relay and last-rank draft policy | Keep current propagation; port only draft PP=1, own embedding, output-head, and target-buffer gates |
 
 The complete machine-readable table is in
 [`results/receipts/vllm-vision-integration-plan.json`](../results/receipts/vllm-vision-integration-plan.json).
@@ -42,16 +42,21 @@ The complete machine-readable table is in
 
 The pinned Vision head does not yet provide the CMP DSpark+PP behavior:
 
-- DSpark explicitly rejects pipeline-parallel world sizes greater than one.
-- PP utilities do not relay, receive, or pad draft tokens between stages.
+- DSpark model loading explicitly rejects pipeline-parallel world sizes greater
+  than one.
+- The current synchronous runner already consumes scheduler-provided draft IDs
+  on every rank. A focused test must prove that path before launch; the older
+  direct PPHandler relay is intentionally not applied.
 - The draft configuration inherits the target PP size instead of using the
   validated single-rank draft policy.
-- The proven SM80 sparse-index row chunking and Torch top-k fallback hooks are
-  absent from the old indexer path; the current Vision call path must be
-  reconciled before porting them.
+- The Vision head has no SM80 MQA fallback: its sparse indexer hard-fails when
+  DeepGEMM is absent, and both `mqa_logits_triton.py` and its `fp8_sm80.py`
+  dependency were removed. The exact `c3046d1` modules and focused source
+  tests must move as one byte-verified bundle, followed by current-API
+  prefill/decode dispatch, ordered top-k, and row-chunk integration.
 
-These facts select the forward-port path. They block a live launch, but not the
-repository-only config, static-source, and tensor-shape work.
+These facts select the minimal current-runner forward-port. They block a live
+launch, but not the repository-only config, static-source, and propagation work.
 
 ## Bounded candidates
 
@@ -62,16 +67,18 @@ repository-only config, static-source, and tensor-shape work.
 3. **PP4 + DSpark k=5** — no-run by default. A different text-only checkpoint
    used k=5; that is not evidence for this Vision model.
 
-Each candidate stops on the first config, partition, relay, MTP-shape, image,
-or stability failure. No candidate is launched while another runtime owns the
-four-card target.
+Each candidate stops on the first config, partition, scheduler-propagation,
+MTP-shape, image, or stability failure. No candidate is launched while another
+runtime owns the four-card target.
 
 ## Gate order
 
-1. Pin the exact Vision head and build the changed C++/CUDA custom ops.
-2. Pass static architecture/config/import checks and PP relay shape tests.
-3. Pass `/v1/models`, deterministic text, real-image, missing-image, and
-   wrong-image controls.
+1. Pin the exact Vision head, apply the byte-verified SM80 bundle, and build
+   the changed C++/CUDA custom ops for SM80.
+2. Pass static architecture/config/import checks and scheduler draft-token
+   propagation tests.
+3. Boot enforce-eager and pass `/v1/models`, deterministic text, real-image,
+   missing-image, and wrong-image controls.
 4. Establish warm greedy C1 with exactly 400 completion tokens and final usage
    accounting.
 5. Only then run C1/C2/C4/C8/C16 with three repetitions and aligned aggregate

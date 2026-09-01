@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "REPO_VALIDATION_IN_PROGRESS",
+  "status": "FORWARD_PORT_CPU_VALIDATION_PASS",
   "model": {
     "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
     "revision": "86f746b36186f0e567729a5c06a8c918caba82a9",
@@ -23,7 +23,7 @@
     "recommended_vllm_tree": "d13ae12b9a6621ef8d218f53741e59c6db2f68d2",
     "recipe_revision": "3dd2d8817e7deae00d998edde0d227e7254ea71e",
     "historical_speculative_tokens": 5,
-    "reuse_scope": "SM80 sparse-attention safety logic and PP draft-relay semantics only; no blind patch overlay."
+    "reuse_scope": "SM80 sparse-attention safety logic and DSpark PP configuration semantics only; no blind patch overlay."
   },
   "delta_table": [
     {
@@ -40,7 +40,7 @@
     },
     {
       "area": "MoE routing ABI",
-      "vision_head": "Adds bias_vl and vocab_size to the topk_softplus_sqrt Python/C++/CUDA contract",
+      "vision_head": "Adds bias_vl and image_sentinel_lo to the topk_softplus_sqrt Python/C++/CUDA contract",
       "cmp_control": "older compiled custom-op ABI",
       "action": "Build the exact Vision head from source. Python bind mounts alone are invalid."
     },
@@ -53,20 +53,20 @@
     {
       "area": "model runner",
       "vision_head": "Changes vllm/v1/worker/gpu_model_runner.py",
-      "cmp_control": "PP relay patch targets vllm/v1/worker/gpu/model_runner.py",
-      "action": "Forward-port PP draft relay semantically to the current runner API; do not apply the old file patch."
+      "cmp_control": "Old PP relay patch targets vllm/v1/worker/gpu/model_runner.py",
+      "action": "Use the current gpu_model_runner.py scheduler propagation path and prove it with a focused test; do not apply the old direct relay."
     },
     {
       "area": "sparse attention",
-      "vision_head": "Changes vllm/v1/attention/backends/mla/sparse_swa.py",
-      "cmp_control": "SM80 fallback targets model_executor/layers/sparse_attn_indexer.py",
-      "action": "Re-audit the active call path and preserve the bounded SM80 top-k fallback only where required."
+      "vision_head": "Sparse indexer hard-requires DeepGEMM; the prior Triton MQA and FP8 compatibility modules are absent",
+      "cmp_control": "Pinned c3046d1 provides the proven SM80 prefill/decode Triton bundle, warmups, ordered top-k fallback, and row chunking",
+      "action": "Vendor both immutable modules and their focused tests, route FP8 KV cache through Triton, and build the current Vision tree from source."
     },
     {
       "area": "PP DSpark",
-      "vision_head": "Vision model declares PP support but does not carry the complete validated CMP draft-relay patchset",
-      "cmp_control": "broadcast, receive, pad, scatter, and draft-embedding PP logic",
-      "action": "Forward-port and CPU-validate the relay logic against the exact Vision head."
+      "vision_head": "The synchronous current runner propagates scheduled draft IDs to every rank, but DSpark model loading still rejects PP",
+      "cmp_control": "older direct draft-token relay plus last-rank draft-loading policy",
+      "action": "Keep current scheduler propagation, set draft PP=1, retain the draft-owned embedding, and remove only the proven DSpark load refusal."
     },
     {
       "area": "speculative depth",
@@ -88,7 +88,9 @@
     "vllm/model_executor/models/config.py",
     "vllm/model_executor/models/registry.py",
     "vllm/v1/worker/gpu_model_runner.py",
-    "vllm/v1/attention/backends/mla/sparse_swa.py"
+    "vllm/v1/attention/backends/mla/sparse_swa.py",
+    "vllm/v1/attention/ops/fp8_sm80.py",
+    "vllm/v1/attention/ops/mqa_logits_triton.py"
   ],
   "pre_live_blockers": [
     {
@@ -97,9 +99,9 @@
       "required_resolution": "Forward-port draft embedding and PP-rank behavior, then cover it with CPU shape tests."
     },
     {
-      "path": "vllm/v1/worker/gpu/pp_utils.py",
-      "observed_on_pinned_head": "No draft-token broadcast, receive, or padding relay is present",
-      "required_resolution": "Forward-port the CMP relay semantics to the current PP API and test rank-local tensor shapes."
+      "path": "vllm/v1/worker/gpu_model_runner.py",
+      "observed_on_pinned_head": "The last-rank pre-hc_head DSpark target buffer is optional rather than asserted under PP",
+      "required_resolution": "Require the Vision target buffer under DSpark PP and prove scheduler-provided draft IDs populate non-last-rank input state."
     },
     {
       "path": "vllm/config/speculative.py",
@@ -108,10 +110,33 @@
     },
     {
       "path": "vllm/model_executor/layers/sparse_attn_indexer.py",
-      "observed_on_pinned_head": "The proven SM80 row-chunk and Torch top-k fallback hooks are absent",
-      "required_resolution": "Reconcile the fallback with the current Vision sparse-attention call path and add bounded CPU/static coverage."
+      "observed_on_pinned_head": "DeepGEMM absence is a hard error; the proven SM80 Triton MQA module and its FP8 compatibility dependency are absent",
+      "required_resolution": "Vendor the exact c3046d1 two-module bundle and focused tests, add current-API prefill/decode dispatch, warmups, ordered top-k, and bounded row chunking."
     }
   ],
+  "forward_port": {
+    "route": "B",
+    "patch": "patches/vllm-pr-54566/0001-cmp-sm80-pp-dspark.patch",
+    "test": "scripts/test_vllm_forward_port.py",
+    "files_changed": [
+      "vllm/config/speculative.py",
+      "vllm/v1/worker/gpu_model_runner.py",
+      "vllm/v1/worker/gpu/spec_decode/dspark/utils.py",
+      "vllm/model_executor/layers/sparse_attn_indexer.py",
+      "vllm/v1/attention/ops/fp8_sm80.py",
+      "vllm/v1/attention/ops/mqa_logits_triton.py",
+      "tests/kernels/attention/test_dsv4_fp8_sm80.py",
+      "tests/kernels/attention/test_mqa_logits_triton.py"
+    ],
+    "scope": "Minimal current-runner DSpark PP loading plus the exact c3046d1 SM80 Triton compatibility bundle and safety dispatch; no legacy direct relay. The Vision pull request's compiled MoE changes remain part of the source build.",
+    "vendored_bundle": {
+      "source_revision": "c3046d1ebd2dae9b94ad2ef5f966ea153632251e",
+      "fp8_sm80_sha256": "4ad3bd77073051c0cb2db2ef3d307ff5047e9a29dab3714fcc65843e87a7eb6e",
+      "mqa_logits_triton_sha256": "b28ff375820cd12423215b6829539a8f1fcf413b6745734fd0aa6e15abe8bf40",
+      "test_fp8_sm80_sha256": "66b90b0073076f41ae8838e3446d4e2ecc734e493f4548fc3c9edb1b8730f62a",
+      "test_mqa_logits_triton_sha256": "4975a64981c9fb8f1be49ff59d35cd9f5b80044e5378993aec7866bdb893e802"
+    }
+  },
   "launch_candidates": [
     {
       "name": "pp4_k3",
@@ -121,8 +146,8 @@
       "num_speculative_tokens": 3,
       "probabilistic_drafting": true,
       "adaptive_verification": false,
-      "status": "CPU_VALIDATION_PENDING",
-      "stop_condition": "Any config, divisibility, PP relay, MTP shape, image, or stability failure."
+      "status": "CPU_VALIDATION_PASS",
+      "stop_condition": "Any config, divisibility, scheduler propagation, MTP shape, image, or stability failure."
     },
     {
       "name": "pp4_k6",
@@ -149,14 +174,14 @@
     "Exact Vision vLLM head and source-built custom-op ABI",
     "Static architecture, model registry, processor, and import validation",
     "Three MTP layers, DSpark block size five, and target layers 40/41/42",
-    "PP4 Vision wrapper placement and DSpark draft-relay tensor shapes",
+    "PP4 Vision wrapper placement and scheduler draft-token propagation",
     "No adaptive verification unless PP support is proven",
     "Models endpoint, deterministic text, real image, missing-image, and wrong-image controls",
     "Warm greedy C1 with exactly 400 completion tokens before the concurrency ladder"
   ],
   "live_transition": {
-    "status": "WAITING_SAFE_BOUNDARY",
-    "active_runtime": "Vision-capable reference runtime",
-    "policy": "No GPU, service, container, model, or storage action until the active owner reaches a safe terminal checkpoint."
+    "status": "LEASE_RELEASED_SOURCE_GATE",
+    "active_runtime": null,
+    "policy": "After CPU/static validation and a fresh ownership, accelerator, and storage preflight, build the exact source and run only the enforce-eager k=3 functional gate."
   }
 }
