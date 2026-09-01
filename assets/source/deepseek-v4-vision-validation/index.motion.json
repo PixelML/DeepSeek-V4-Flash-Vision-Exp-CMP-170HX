@@ -1,0 +1,12 @@
+{
+  "duration": 8,
+  "maxStaticSec": 1.4,
+  "assertions": [
+    { "kind": "appearsBy", "selector": "#deepseek-headline", "bySec": 0.55 },
+    { "kind": "before", "a": "#text-card", "b": "#vision-card" },
+    { "kind": "staysInFrame", "selector": "#text-card" },
+    { "kind": "staysInFrame", "selector": "#vision-card" },
+    { "kind": "staysInFrame", "selector": "#final-card" },
+    { "kind": "keepsMoving", "withinSelector": "#deepseek-stage", "maxStaticSec": 1.4 }
+  ]
+}

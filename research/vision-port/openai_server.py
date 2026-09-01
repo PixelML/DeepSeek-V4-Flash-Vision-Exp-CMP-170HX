@@ -24,10 +24,14 @@ from safetensors.torch import load_model
 from transformers import AutoTokenizer
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-ENCODING_DIR = os.path.join(CURRENT_DIR, "../../encoding")
-sys.path.insert(0, os.path.abspath(ENCODING_DIR))
+PATCHES_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "..", "patches"))
+ENCODING_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "..", "encoding"))
+for module_dir in (CURRENT_DIR, PATCHES_DIR, ENCODING_DIR):
+    if module_dir not in sys.path:
+        sys.path.insert(0, module_dir)
 
-import sm80_fallbacks  # noqa: E402,F401  (installed via PYTHONPATH=/work/patches)
+import sm80_fallbacks  # noqa: E402
+sm80_fallbacks.apply()
 from encoding_dsv4 import encode_case  # noqa: E402
 from image_processor import prepare_vl_inputs  # noqa: E402
 from generate import generate  # noqa: E402
@@ -38,6 +42,7 @@ MODEL_ID = os.getenv(
 )
 BIND_HOST = os.getenv("DSV4_BIND_HOST", "127.0.0.1")
 BIND_PORT = int(os.getenv("DSV4_BIND_PORT", "8000"))
+MAX_DATA_URL_CHARS = int(os.getenv("DSV4_MAX_DATA_URL_CHARS", str(16 * 1024 * 1024)))
 BIRTH = time.time()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -48,7 +53,7 @@ class ChatRequest(BaseModel):
     model: str
     messages: List[Dict[str, Any]]
     max_tokens: int = Field(default=64, ge=1, le=2048)
-    temperature: float = Field(default=1.0, ge=0.0, le=2.0)
+    temperature: float = Field(default=0.0, ge=0.0, le=0.0)
 
 
 def strip_to_text_and_images(messages: List[Dict[str, Any]]):
@@ -71,6 +76,10 @@ def strip_to_text_and_images(messages: List[Dict[str, Any]]):
                 url = block.get("image_url", {}).get("url", "")
                 if not url.startswith("data:image/"):
                     raise HTTPException(400, "only data: image URLs are supported")
+                if images:
+                    raise HTTPException(400, "at most one image is supported per request")
+                if len(url) > MAX_DATA_URL_CHARS:
+                    raise HTTPException(413, "image data URL exceeds the configured limit")
                 images.append({"url": url})
                 text_parts.append("<image></image>")
             else:
@@ -89,6 +98,7 @@ class Engine:
         if self.world_size > 1:
             dist.init_process_group("nccl")
         torch.cuda.set_device(self.local_rank)
+        self.request_lock = threading.Lock()
         torch.cuda.memory._set_allocator_settings("expandable_segments:True")
         torch.set_default_dtype(torch.bfloat16)
         torch.set_num_threads(8)
@@ -120,6 +130,11 @@ class Engine:
 
     @torch.inference_mode()
     def run_rank0(self, messages, max_tokens, temperature):
+        with self.request_lock:
+            return self._run_rank0(messages, max_tokens, temperature)
+
+    def _run_rank0(self, messages, max_tokens, temperature):
+        """Run one collective request; callers are serialized by run_rank0."""
         clean, images = strip_to_text_and_images(messages)
         case = {"messages": clean}
         prompt, image_records = encode_case(case, "chat")
@@ -164,6 +179,8 @@ def list_models():
 def chat_completions(req: ChatRequest):
     if req.model != MODEL_ID:
         raise HTTPException(404, f"unknown model: {req.model}")
+    if req.temperature != 0.0:
+        raise HTTPException(400, "only greedy decoding (temperature=0) is supported")
     result = ENGINE.run_rank0(req.messages, req.max_tokens, req.temperature)
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import subprocess
 from pathlib import Path
@@ -50,11 +51,56 @@ def main() -> None:
         "results/receipts/preflight.json",
         "results/receipts/import-gate.json",
         "results/receipts/load-gate.json",
+        "results/receipts/vision-reference-smoke.json",
+        "results/vision_smoke.json",
         "notebooks/cmp-170hx-experiment.ipynb",
     )
     for relative in required_json:
         path = ROOT / relative
         load_json(path)
+
+    required_files = (
+        "fixtures/make_gradient.py",
+        "fixtures/vision-gradient.png",
+        "assets/deepseek-v4-vision-validation.png",
+        "assets/deepseek-v4-vision-validation.mp4",
+        "assets/source/deepseek-v4-vision-validation/index.html",
+        "assets/source/deepseek-v4-vision-validation/shot-plan.json",
+        "assets/source/deepseek-v4-vision-validation/hyperframes.json",
+        "assets/source/deepseek-v4-vision-validation/index.motion.json",
+        "assets/source/deepseek-v4-vision-validation/pixelml-logo.svg",
+        "research/vision-port/openai_server.py",
+        "scripts/verify_private_server.py",
+    )
+    for relative in required_files:
+        assert (ROOT / relative).is_file(), f"missing required evidence: {relative}"
+
+    fixture = ROOT / "fixtures" / "vision-gradient.png"
+    assert hashlib.sha256(fixture.read_bytes()).hexdigest() == (
+        "6479c792f14eaa655681ba2d04df37507cec8caff44fe91dad934777b3e2ae6a"
+    )
+
+    server_source = (ROOT / "research" / "vision-port" / "openai_server.py").read_text()
+    assert 'os.path.join(CURRENT_DIR, "..", "encoding")' in server_source
+    assert 'os.path.join(CURRENT_DIR, "..", "..", "patches")' in server_source
+    assert "sm80_fallbacks.apply()" in server_source
+    assert 'os.getenv("DSV4_BIND_HOST", "127.0.0.1")' in server_source
+    assert "default=0.0" in server_source
+
+    notebook = load_json(ROOT / "notebooks" / "cmp-170hx-experiment.ipynb")
+    code_cells = [cell for cell in notebook["cells"] if cell["cell_type"] == "code"]
+    if status["phases"][-1]["status"] in {"PASS", "COMPLETE"}:
+        assert code_cells and all(cell["execution_count"] is not None for cell in code_cells)
+        assert all(cell["outputs"] for cell in code_cells)
+
+    live_path = ROOT / "results" / "receipts" / "openai-private-live.json"
+    if status["phases"][-1]["status"] in {"PASS", "COMPLETE"}:
+        live = load_json(live_path)
+        assert live["status"] == "PASS"
+        assert live["models_gate"]["required_alias_present"] is True
+        assert live["text_gate"]["raw_content"].strip() == "OK"
+        assert live["fixture"]["sha256"] == hashlib.sha256(fixture.read_bytes()).hexdigest()
+        assert re.fullmatch(r"[0-9a-f]{40}", live["repository_revision"])
 
     tracked = subprocess.check_output(
         ["git", "ls-files", "-z"], cwd=ROOT

@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en" data-resolution="square">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1080, height=1080">
+    <title>DeepSeek V4 Vision — CMP 170HX validation</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      :root {
+        --bg: #07111f;
+        --panel: #111e30;
+        --panel-deep: #091525;
+        --ink: #f4f7fb;
+        --muted: #aab6c8;
+        --mint: #36d7b0;
+        --blue: #5c8dff;
+        --pink: #f16c9b;
+        --amber: #f6b83f;
+        --line: rgba(170, 182, 200, 0.2);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html,
+      body {
+        width: 1080px;
+        height: 1080px;
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      body {
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      #deepseek-stage {
+        position: relative;
+        width: 1080px;
+        height: 1080px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 16% 12%, rgba(54, 215, 176, 0.14), transparent 35%),
+          radial-gradient(circle at 92% 74%, rgba(92, 141, 255, 0.13), transparent 40%),
+          var(--bg);
+      }
+
+      .visual-shell {
+        position: absolute;
+        inset: 0;
+        width: 1080px;
+        height: 1080px;
+        padding: 54px 64px 46px;
+      }
+
+      .grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.13;
+        background-image:
+          linear-gradient(rgba(170, 182, 200, 0.12) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(170, 182, 200, 0.12) 1px, transparent 1px);
+        background-size: 72px 72px;
+        mask-image: linear-gradient(to bottom, transparent, black 20%, black 78%, transparent);
+      }
+
+      .brand-header {
+        position: relative;
+        z-index: 3;
+        display: grid;
+        grid-template-columns: 170px 1fr;
+        gap: 28px;
+        align-items: start;
+        width: 952px;
+        min-height: 174px;
+      }
+
+      .logo-shell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 170px;
+        height: 62px;
+        padding: 15px 14px;
+        border-radius: 16px;
+        background: #f4f7fb;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
+      }
+
+      .logo-shell img {
+        display: block;
+        width: 142px;
+        height: auto;
+      }
+
+      .eyebrow {
+        color: var(--mint);
+        font-size: 24px;
+        font-weight: 850;
+        letter-spacing: 0.09em;
+        line-height: 1.1;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin-top: 10px;
+        font-size: 55px;
+        font-weight: 850;
+        letter-spacing: -0.046em;
+        line-height: 0.98;
+      }
+
+      .subtitle {
+        margin-top: 15px;
+        color: var(--muted);
+        font-size: 26px;
+        font-weight: 620;
+        line-height: 1.18;
+      }
+
+      .hero-claim {
+        position: absolute;
+        z-index: 2;
+        top: 242px;
+        left: 64px;
+        width: 952px;
+        min-height: 176px;
+      }
+
+      .hero-kicker {
+        color: var(--muted);
+        font-size: 25px;
+        font-weight: 780;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .hero-result {
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        margin-top: 15px;
+      }
+
+      .hero-result strong {
+        color: var(--mint);
+        font-size: 75px;
+        font-weight: 900;
+        letter-spacing: -0.055em;
+        line-height: 0.98;
+      }
+
+      .hero-result span {
+        display: inline-flex;
+        align-items: center;
+        height: 49px;
+        padding: 0 19px;
+        border: 1px solid rgba(54, 215, 176, 0.5);
+        border-radius: 999px;
+        background: rgba(54, 215, 176, 0.11);
+        color: var(--mint);
+        font-size: 23px;
+        font-weight: 850;
+        letter-spacing: 0.05em;
+      }
+
+      .result-stage {
+        position: absolute;
+        z-index: 4;
+        top: 430px;
+        left: 64px;
+        width: 952px;
+        height: 448px;
+      }
+
+      .result-card {
+        position: absolute;
+        inset: 0;
+        width: 952px;
+        height: 448px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 32px;
+        background: linear-gradient(145deg, rgba(17, 30, 48, 0.98), rgba(9, 21, 37, 0.98));
+        box-shadow: 0 28px 70px rgba(0, 0, 0, 0.28);
+        opacity: 0;
+      }
+
+      .card-pad {
+        width: 100%;
+        height: 100%;
+        padding: 42px;
+      }
+
+      .card-topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .card-label {
+        color: var(--muted);
+        font-size: 24px;
+        font-weight: 820;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        height: 46px;
+        padding: 0 18px;
+        border-radius: 999px;
+        background: rgba(54, 215, 176, 0.13);
+        color: var(--mint);
+        font-size: 23px;
+        font-weight: 900;
+      }
+
+      .status-dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--mint);
+        box-shadow: 0 0 18px rgba(54, 215, 176, 0.85);
+      }
+
+      .terminal {
+        margin-top: 34px;
+        padding: 28px 30px;
+        border: 1px solid rgba(170, 182, 200, 0.16);
+        border-radius: 22px;
+        background: #07111f;
+      }
+
+      .terminal-row {
+        display: grid;
+        grid-template-columns: 126px 1fr;
+        gap: 20px;
+        color: var(--muted);
+        font-size: 27px;
+        font-weight: 650;
+        line-height: 1.32;
+      }
+
+      .terminal-row + .terminal-row {
+        margin-top: 17px;
+      }
+
+      .terminal-key {
+        color: var(--blue);
+        font-weight: 850;
+      }
+
+      .terminal-answer {
+        color: var(--mint);
+        font-size: 34px;
+        font-weight: 900;
+      }
+
+      .card-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 30px;
+        color: var(--muted);
+        font-size: 23px;
+        font-weight: 650;
+      }
+
+      .card-foot strong {
+        color: var(--ink);
+        font-weight: 800;
+      }
+
+      .vision-layout {
+        display: grid;
+        grid-template-columns: 344px 1fr;
+        gap: 36px;
+        margin-top: 29px;
+      }
+
+      .fixture-wrap {
+        position: relative;
+        width: 344px;
+        height: 274px;
+        padding: 12px;
+        border: 1px solid rgba(170, 182, 200, 0.19);
+        border-radius: 25px;
+        background: #07111f;
+      }
+
+      .fixture {
+        width: 320px;
+        height: 250px;
+        border-radius: 17px;
+        background: linear-gradient(to bottom, rgb(255, 0, 128), rgb(0, 255, 128));
+      }
+
+      .fixture-badge {
+        position: absolute;
+        right: 24px;
+        bottom: 24px;
+        padding: 8px 12px;
+        border-radius: 11px;
+        background: rgba(7, 17, 31, 0.78);
+        color: var(--ink);
+        font-size: 17px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .vision-copy {
+        padding-top: 10px;
+      }
+
+      .vision-question {
+        color: var(--muted);
+        font-size: 23px;
+        font-weight: 650;
+        line-height: 1.35;
+      }
+
+      .vision-answer {
+        margin-top: 18px;
+        color: var(--ink);
+        font-size: 34px;
+        font-weight: 850;
+        letter-spacing: -0.025em;
+        line-height: 1.15;
+      }
+
+      .color-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 11px;
+        margin-top: 25px;
+      }
+
+      .chip {
+        padding: 8px 13px;
+        border: 1px solid rgba(244, 247, 251, 0.22);
+        border-radius: 999px;
+        color: var(--ink);
+        font-size: 20px;
+        font-weight: 770;
+      }
+
+      .chip-pink { background: rgba(241, 108, 155, 0.23); }
+      .chip-blue { background: rgba(92, 141, 255, 0.23); }
+      .chip-green { background: rgba(54, 215, 176, 0.21); }
+      .chip-yellow { background: rgba(246, 184, 63, 0.19); }
+
+      .final-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 18px;
+        margin-top: 18px;
+      }
+
+      #final-card .card-pad {
+        padding: 28px 42px;
+      }
+
+      .final-metric {
+        min-height: 78px;
+        padding: 12px 18px;
+        border: 1px solid rgba(170, 182, 200, 0.16);
+        border-radius: 20px;
+        background: rgba(7, 17, 31, 0.7);
+      }
+
+      .final-metric strong {
+        display: block;
+        color: var(--mint);
+        font-size: 25px;
+        font-weight: 900;
+      }
+
+      .final-metric span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 17px;
+        font-weight: 680;
+      }
+
+      .final-verdict {
+        margin-top: 16px;
+        color: var(--ink);
+        font-size: 28px;
+        font-weight: 900;
+        letter-spacing: -0.025em;
+      }
+
+      .limitation {
+        margin-top: 10px;
+        padding: 9px 14px;
+        border-left: 4px solid var(--amber);
+        background: rgba(246, 184, 63, 0.09);
+        color: #f4d58d;
+        font-size: 18px;
+        font-weight: 750;
+      }
+
+      .scan-line {
+        position: absolute;
+        z-index: 7;
+        top: 422px;
+        left: 64px;
+        width: 4px;
+        height: 468px;
+        border-radius: 999px;
+        background: var(--mint);
+        box-shadow: 0 0 24px rgba(54, 215, 176, 0.82);
+      }
+
+      .footer {
+        position: absolute;
+        z-index: 4;
+        left: 64px;
+        bottom: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 952px;
+        color: var(--muted);
+        font-size: 21px;
+        font-weight: 650;
+      }
+
+      .footer span:nth-child(2) {
+        color: var(--ink);
+        font-weight: 800;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="deepseek-stage" data-composition-id="deepseek-v4-vision-cmp" data-start="0" data-duration="8" data-fps="30" data-width="1080" data-height="1080">
+      <div id="deepseek-visual" class="clip visual-shell" data-start="0" data-duration="8" data-track-index="1">
+        <div class="grid" data-layout-ignore="true"></div>
+
+        <header class="brand-header">
+          <div id="brand" class="logo-shell">
+            <img src=".media/images/pixelml-logo.svg" alt="PixelML">
+          </div>
+          <div>
+            <div id="eyebrow" class="eyebrow">REAL HARDWARE · REAL IMAGE INPUT</div>
+            <h1 id="deepseek-headline">DeepSeek-V4 Flash Vision</h1>
+            <p id="subtitle" class="subtitle">4× CMP 170HX · TP4 reference stack · SM80</p>
+          </div>
+        </header>
+
+        <section class="hero-claim">
+          <div id="hero-kicker" class="hero-kicker">MEASURED FUNCTIONAL VALIDATION</div>
+          <div class="hero-result">
+            <strong id="hero-result">VISION WORKS</strong>
+            <span id="hero-pill">4-CARD PASS</span>
+          </div>
+        </section>
+
+        <main class="result-stage">
+          <section id="text-card" class="result-card">
+            <div class="card-pad">
+              <div class="card-topline">
+                <div class="card-label">01 · TEXT SMOKE</div>
+                <div id="text-status" class="status-pill" data-layout-allow-occlusion><i class="status-dot"></i>PASS</div>
+              </div>
+              <div class="terminal">
+                <div class="terminal-row">
+                  <span class="terminal-key">PROMPT</span>
+                  <span>Reply with exactly one word: OK</span>
+                </div>
+                <div class="terminal-row">
+                  <span class="terminal-key">MODEL</span>
+                  <span id="text-answer" class="terminal-answer">OK</span>
+                </div>
+              </div>
+              <div class="card-foot">
+                <span>Reference stack · TP4</span>
+                <strong>4/4 cards · clean exit</strong>
+              </div>
+            </div>
+          </section>
+
+          <section id="vision-card" class="result-card">
+            <div class="card-pad">
+              <div class="card-topline">
+                <div class="card-label">02 · IMAGE SMOKE</div>
+                <div id="vision-status" class="status-pill" data-layout-allow-occlusion><i class="status-dot"></i>PASS</div>
+              </div>
+              <div class="vision-layout">
+                <div id="fixture-wrap" class="fixture-wrap">
+                  <div class="fixture"></div>
+                  <div class="fixture-badge">INPUT IMAGE</div>
+                </div>
+                <div class="vision-copy">
+                  <div class="vision-question">What are the dominant colors in this image?</div>
+                  <div id="vision-answer" class="vision-answer">Vibrant pink, deep blue, bright green, and soft yellow.</div>
+                  <div class="color-chips">
+                    <span class="chip chip-pink">PINK</span>
+                    <span class="chip chip-blue">BLUE</span>
+                    <span class="chip chip-green">GREEN</span>
+                    <span class="chip chip-yellow">YELLOW</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="final-card" class="result-card">
+            <div class="card-pad">
+              <div class="card-topline">
+                <div class="card-label">CMP 170HX · VALIDATED RESULT</div>
+                <div class="status-pill"><i class="status-dot"></i>MEASURED</div>
+              </div>
+              <div class="final-grid">
+                <div class="final-metric"><strong>TEXT ✓</strong><span>Exact response verified</span></div>
+                <div class="final-metric"><strong>IMAGE ✓</strong><span>Real pixels inspected</span></div>
+                <div class="final-metric"><strong>4× TP4</strong><span>~44.1 GiB per card</span></div>
+                <div class="final-metric"><strong>37–41°C</strong><span>No Xid or ECC</span></div>
+              </div>
+              <div id="final-verdict" class="final-verdict">DeepSeek vision is running on CMP 170HX.</div>
+              <div id="limitation" class="limitation">Throughput and serving benchmark pending · no tok/s claim yet</div>
+            </div>
+          </section>
+        </main>
+
+        <div id="scan-line" class="scan-line" data-layout-ignore="true"></div>
+
+        <footer id="footer" class="footer">
+          <span>Model revision 86f746b</span>
+          <span>FUNCTIONAL GATE: PASS</span>
+          <span>PixelML hardware lab</span>
+        </footer>
+      </div>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      window.__timelines["deepseek-v4-vision-cmp"] = tl;
+
+      gsap.set("#scan-line", {
+        autoAlpha: 0,
+        scaleY: 0.12,
+        transformOrigin: "50% 50%"
+      });
+
+      const hide = [
+        "#brand", "#eyebrow", "#deepseek-headline", "#subtitle",
+        "#hero-kicker", "#hero-result", "#hero-pill", "#footer",
+        "#text-card", "#vision-card", "#final-card"
+      ];
+      tl.set(hide, { autoAlpha: 0 }, 0);
+
+      tl.fromTo("#brand", { y: -18, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35, ease: "power2.out" }, 0.05);
+      tl.fromTo("#eyebrow", { y: -14, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.34, ease: "power2.out" }, 0.12);
+      tl.fromTo("#deepseek-headline", { y: 22, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42, ease: "power3.out" }, 0.18);
+      tl.fromTo("#subtitle", { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35, ease: "power2.out" }, 0.28);
+      tl.fromTo("#hero-kicker", { x: -26, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.34, ease: "power2.out" }, 0.38);
+      tl.fromTo("#hero-result", { y: 24, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42, ease: "back.out(1.18)" }, 0.48);
+      tl.fromTo("#hero-pill", { scale: 0.82, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.34, ease: "back.out(1.6)" }, 0.72);
+      tl.to("#scan-line", { autoAlpha: 1, scaleY: 1, duration: 0.45, ease: "power3.out" }, 0.74);
+      tl.to("#scan-line", { x: 948, duration: 0.62, ease: "power2.inOut" }, 0.82);
+
+      tl.fromTo("#text-card", { y: 34, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42, ease: "power3.out" }, 1.15);
+      tl.fromTo("#text-status", { scale: 0.78 }, { scale: 1, duration: 0.34, ease: "back.out(1.7)" }, 1.58);
+      tl.fromTo("#text-answer", { x: -18, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.32, ease: "power2.out" }, 1.74);
+      tl.to("#text-status .status-dot", { scale: 1.55, duration: 0.22, yoyo: true, repeat: 1, ease: "power2.inOut" }, 2.18);
+      tl.to("#text-card", { y: -24, autoAlpha: 0, duration: 0.23, ease: "power2.in" }, 2.82);
+
+      tl.set("#scan-line", { x: 948 }, 2.92);
+      tl.to("#scan-line", { x: 0, duration: 0.58, ease: "power2.inOut" }, 2.92);
+      tl.fromTo("#vision-card", { y: 34, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42, ease: "power3.out" }, 3.06);
+      tl.fromTo("#fixture-wrap", { scale: 0.9, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.42, ease: "back.out(1.25)" }, 3.46);
+      tl.fromTo("#vision-answer", { x: 24, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.38, ease: "power2.out" }, 3.72);
+      tl.fromTo(".chip", { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.28, stagger: 0.1, ease: "power2.out" }, 4.08);
+      tl.to("#vision-status .status-dot", { scale: 1.55, duration: 0.22, yoyo: true, repeat: 1, ease: "power2.inOut" }, 4.74);
+      tl.to("#vision-card", { y: -24, autoAlpha: 0, duration: 0.35, ease: "power2.in" }, 5.24);
+
+      tl.fromTo("#final-card", { y: 34, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.42, ease: "power3.out" }, 5.60);
+      tl.fromTo(".final-metric", { y: 20, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.32, stagger: 0.11, ease: "power2.out" }, 5.90);
+      tl.fromTo("#final-verdict", { x: -24, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.36, ease: "power2.out" }, 6.50);
+      tl.fromTo("#limitation", { x: 24, autoAlpha: 0 }, { x: 0, autoAlpha: 1, duration: 0.36, ease: "power2.out" }, 6.80);
+      tl.fromTo("#footer", { y: 16, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.35, ease: "power2.out" }, 7.02);
+      tl.to("#scan-line", { x: 474, scaleY: 0.02, autoAlpha: 0.55, duration: 0.52, ease: "power2.inOut" }, 7.02);
+      tl.to("#final-card", { scale: 1.006, duration: 0.26, yoyo: true, repeat: 1, ease: "power1.inOut" }, 7.35);
+
+      tl.seek(0);
+    </script>
+  </body>
+</html>
