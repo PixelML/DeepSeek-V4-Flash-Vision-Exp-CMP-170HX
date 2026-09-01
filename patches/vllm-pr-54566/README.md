@@ -13,7 +13,7 @@ git apply /path/to/0001-cmp-sm80-pp-dspark.patch
 python /path/to/scripts/test_vllm_forward_port.py --vllm-src "$PWD"
 ```
 
-The patch makes five coordinated changes:
+The patch makes six coordinated changes:
 
 1. The DSpark draft is PP size 1 while the target remains PP4.
 2. Under PP, the last target rank retains the DSpark draft's own checkpoint-
@@ -29,6 +29,11 @@ The patch makes five coordinated changes:
    preserves ordered Torch prefill top-k output, bounds the prefill logits
    transient by row chunking, and keeps the persistent decode selector
    Hopper-only.
+6. The new `GPUModelRunnerV2` keeps the same DSpark+PP carve-out in its
+   speculative-config validation that the legacy runner carries; without it,
+   the first PP4 boot dies with `dspark with pipeline parallel is not
+   supported` during config validation, before any weight is loaded. The
+   focused regression test pins this predicate structurally via AST.
 
 The current synchronous runner already copies
 `scheduler_output.scheduled_spec_decode_tokens` into every rank's persistent

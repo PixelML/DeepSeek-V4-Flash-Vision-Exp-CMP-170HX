@@ -19,6 +19,7 @@ PATCH = ROOT / "patches/vllm-pr-54566/0001-cmp-sm80-pp-dspark.patch"
 FILES = {
     "config": "vllm/config/speculative.py",
     "runner": "vllm/v1/worker/gpu_model_runner.py",
+    "runner_v2": "vllm/v1/worker/gpu/model_runner.py",
     "input_batch": "vllm/v1/worker/gpu_input_batch.py",
     "dspark": "vllm/v1/worker/gpu/spec_decode/dspark/utils.py",
     "sparse": "vllm/model_executor/layers/sparse_attn_indexer.py",
@@ -202,6 +203,39 @@ def test_sparse_warmup_contract(texts: dict[str, str]) -> None:
         assert ast.unparse(keywords["num_heads"]) == expression
 
 
+def test_new_runner_pp_dspark_predicate(runner_v2_source: str) -> None:
+    """The new GPUModelRunnerV2 must not ban DSpark under PP.
+
+    The legacy runner carried this carve-out from the original port; the
+    current head dispatches DeepSeek V4 to the new runner, so the same
+    carve-out must exist there or the first PP4 boot dies during config
+    validation before any weight is loaded.
+    """
+    module = ast.parse(runner_v2_source)
+    Klass = next(
+        node
+        for node in module.body
+        if isinstance(node, ast.ClassDef) and node.name == "GPUModelRunner"
+    )
+    found = 0
+    for node in ast.walk(Klass):
+        if not (isinstance(node, ast.If) and isinstance(node.test, ast.BoolOp)):
+            continue
+        if not any(
+            isinstance(cmp, ast.Compare)
+            and len(cmp.ops) == 1
+            and isinstance(cmp.ops[0], ast.NotEq)
+            and isinstance(cmp.comparators[0], ast.Constant)
+            and cmp.comparators[0].value == "dspark"
+            for cmp in node.test.values
+        ):
+            continue
+        body = ast.unparse(node.body[0])
+        assert "not supported" in body, ast.unparse(node.body[0])
+        found += 1
+    assert found == 1, f"expected exactly one dspark PP carve-out, found {found}"
+
+
 def main() -> None:
     """Validate the exact pin, patch state, syntax, and focused contracts."""
     parser = argparse.ArgumentParser()
@@ -269,6 +303,7 @@ def main() -> None:
     test_scheduler_drafts_reach_persistent_batch(
         texts["runner"], texts["input_batch"]
     )
+    test_new_runner_pp_dspark_predicate(texts["runner_v2"])
 
     print("CMP Vision vLLM forward port: PASS")
 
