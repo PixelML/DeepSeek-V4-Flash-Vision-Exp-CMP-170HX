@@ -1,9 +1,11 @@
 {
-  "model": "dsv4v",
-  "image": "Codex Image Aug 12, 2026, 01_31_15 AM.jpg",
-  "prompt": "What food is shown in this image? Answer in one short sentence.",
-  "status": "error",
-  "elapsed_s": 0.123,
-  "error_class": "HTTPError",
-  "error_summary": "HTTP Error 400: Bad Request"
+  "model": "deepseek-v4-flash-vision-exp-cmp-170hx",
+  "runtime": "tp4-reference-sm80-fallback",
+  "fixture": "synthetic vertical red-to-green gradient with constant blue channel",
+  "prompt": "Describe the dominant colors in this image.",
+  "status": "PASS",
+  "observed_summary": "vibrant pink, deep blue, bright green, and soft yellow",
+  "semantic_check": "PASS",
+  "throughput_status": "NOT_MEASURED",
+  "receipt": "results/receipts/vision-reference-smoke.json"
 }

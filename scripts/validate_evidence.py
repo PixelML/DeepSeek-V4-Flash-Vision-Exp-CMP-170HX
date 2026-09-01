@@ -22,7 +22,16 @@ FORBIDDEN = {
     "private_ipv4": re.compile(r"\b(?:10|169\.254|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b"),
     "private_path": re.compile(r"/(?:home|Users|library|models|mnt|srv)/"),
     "tracker_url": re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/issues/\d+"),
-    "credential_assignment": re.compile(r"(?i)(?:token|password|secret|api[_-]?key)\s*[:=]\s*[^\s\"']+"),
+    "private_tracker_name": re.compile("(?i)" + "seanphan" + r"/pixelml"),
+    "private_issue_shorthand": re.compile(r"(?i)(?:pixelml)?#\d+\b"),
+    "private_tailnet_ipv4": re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"),
+    "private_host_alias": re.compile(
+        r"(?i)\b(?:" + "agent-" + "sandbox" + r"|" + "chimera" + r"\.tail\S*)\b"
+    ),
+    "credential_assignment": re.compile(
+        r"(?i)(?:password|secret|api[_-]?key|auth[_-]?token|hf[_-]?token)"
+        r"\s*[:=]\s*[^\s\"']+"
+    ),
 }
 
 
@@ -52,10 +61,13 @@ def main() -> None:
     ).decode().split("\0")
     for relative in filter(None, tracked):
         path = ROOT / relative
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
+        if path.is_symlink():
+            text = path.readlink().as_posix()
+        else:
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
         for label, pattern in FORBIDDEN.items():
             assert not pattern.search(text), f"{label} found in {relative}"
 

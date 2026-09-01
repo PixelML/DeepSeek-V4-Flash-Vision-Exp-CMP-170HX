@@ -2,8 +2,10 @@
 
 ## Status
 
-- Storage gate reopened (#57 comment 5490056484): all new CMP heavy starts and model writes/downloads HELD until #57 posts required pools >10% free + fresh passing preflight. Ack posted: 5490132898.
-- In-flight text smoke (started before the gate, weights mounted read-only) preserved to completion. No new runs started.
+- A storage-health gate paused new heavy starts until required capacity and
+  read/write checks passed. The in-flight text smoke used read-only weights
+  and was preserved to completion.
+- After the gate cleared, the four-card text and real-image smokes both passed.
 
 ## Fix
 
@@ -32,7 +34,7 @@ All 7 tests PASS (SM80_FALLBACK_UNIT_TESTS_OK):
 Command:
 
     docker run --rm --gpus "device=0" \
-      -v /home/ubuntu/repos/dsv4-vision-exp-cmp170hx:/work \
+      -v "$PWD:/work" \
       dsv4-vision:full python3 /work/scripts/sm80_unit_test.py
 
 ## Test details
@@ -41,12 +43,12 @@ Command:
 - Test bytes sanitize 0x7f/0xff — these are the only e4m3fn NaN encodings; the model checkpoint itself never stores NaN scale bytes.
 - hc_split_sinkhorn assertions now build float32 reference tensors (previous test bug: allclose dtype mismatch, not a kernel issue).
 
-## Text smoke (in flight, read-only)
+## Text smoke (read-only)
 
-- Container dsv4-text, 4x CMP 170HX, torchrun nproc=4.
+- One private experiment container, 4x CMP 170HX, torchrun nproc=4.
 - Load completed in ~16 min (44.1 GiB per card), generation started ~06:50Z.
 - Pure-PyTorch fallback prefill/decode is extremely slow (1-5% GPU util); 16 tokens may take tens of minutes.
-- No Traceback so far (previous failure was immediate at first forward pass).
+- The run completed with the exact one-word completion `OK` and no traceback.
 
 ## Post-mortem: first text smoke result (07:03Z)
 
@@ -56,4 +58,4 @@ Command:
 - Fix: pure-torch Sylvester Hadamard in sm80_fallbacks.py + patches/fast_hadamard_transform.py shim
   (model.py imports it by name; patches/ is ahead on sys.path).
 - Unit evidence (GPU 0): H@H.T == n*I exact; transform identity err 0.0; shim import resolves.
-- Storage gate still held: no new 4-card run until #57 posts >10% free + fresh passing preflight.
+- The storage gate later cleared after fresh capacity and health checks passed.

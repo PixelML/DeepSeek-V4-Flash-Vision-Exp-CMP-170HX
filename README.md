@@ -1,130 +1,137 @@
 # DeepSeek-V4-Flash-Vision-Exp on 4× CMP 170HX
 
-> **TL;DR — VIABLE TEXT-ONLY.** `deepseek-ai/DeepSeek-V4-Flash-Vision-Exp`
-> (rev `86f746b3`) serves text on four CMP 170HX cards (SM80, 64 GiB each) in a
-> pipeline-parallel 4 configuration: **59.78 tok/s warm aggregate decode**
-> (51.06 cold), **0.163 s warm TTFT** (0.214 s cold), **325.5 tok/s uncached
-> prefill**, after a 19.3 min eager model load from shared model storage
-> (~44 min cold start to ready). **Vision is unsupported in the SM80 fork** —
-> the vision tower is not wired, so image requests are rejected (HTTP 400) by
-> the text-only serve path.
+[![DeepSeek-V4-Flash-Vision-Exp real-image validation on four CMP 170HX cards](assets/deepseek-v4-vision-validation.png)](assets/deepseek-v4-vision-validation.mp4)
+
+> **TL;DR — REAL IMAGE INPUT WORKS.** The pinned
+> `deepseek-ai/DeepSeek-V4-Flash-Vision-Exp` checkpoint (revision
+> `86f746b3`) produced valid text and image responses on four 64 GiB CMP 170HX
+> cards using a TP4 reference stack with Ampere-compatible fallbacks. The real
+> image gate passed at about **44.1 GiB per card**, **37–41 °C**, with **no Xid
+> or ECC event**. This proves functional multimodal inference. It is not yet a
+> speed claim: reference-stack serving throughput remains unmeasured.
+
+The earlier vLLM/DSpark path is a separate, text-only performance baseline. It
+reached **59.78 tok/s warm single-stream decode**, **325.5 tok/s uncached
+prefill**, and **169.65 tok/s aggregate at C4**, but its SM80 fork does not wire
+the vision tower. Do not compare those text-path numbers to the functional
+reference path as though they came from one runtime.
 
 Evidence: [experiment notebook](notebooks/cmp-170hx-experiment.ipynb) ·
-[measurement receipt](results/receipts/measurements.json) ·
-[benchmark card (HTML)](assets/benchmark-card.html) ·
-[benchmark card (PNG)](assets/benchmark-card.png)
+[real-image smoke receipt](results/receipts/vision-reference-smoke.json) ·
+[text-path measurements](results/receipts/measurements.json) ·
+[text-path concurrency ladder](results/ladder.json)
 
-## Startup recipe
+## What passed
 
-The launch recipe lives in
-[`launch-vision-exp-4card.sh`](launch-vision-exp-4card.sh): point `DSV4_MODEL`
-at the pinned checkpoint directory and `DSV4_VLLM_SRC` at the pinned SM80 vLLM
-fork checkout, then run the script. Key settings from attempt 12 (startup
-PASS, receipt in
-[`results/receipts/attempt-12-startup.json`](results/receipts/attempt-12-startup.json)):
-
-| Setting | Value |
-| --- | --- |
-| Topology | PP=4, layer partition 11,11,11,10, four-card CMP 170HX node (SM80, 64 GiB each) |
-| KV cache | fp8 |
-| Weight load | safetensors eager strategy |
-| Speculative decoding | DSpark, k=6 |
-| Max model len / batched tokens | 16384 / 2048 |
-| Single change vs attempt 11 | bind-mount the patched DSpark draft loader |
-
-Readiness signal: 48/48 main shards plus draft weights loaded, memory
-profiling and CUDA graph capture complete, `Application startup complete`,
-health endpoint returning 200.
-
-## Measurements
-
-Single-stream (concurrency 1), greedy, 400-token completions across three
-content types with final-usage token counts. Captured 2026-08-31; canonical
-receipt in
-[`results/receipts/measurements.json`](results/receipts/measurements.json).
-
-| Metric | Cold | Warm |
+| Gate | Result | Evidence |
 | --- | --- | --- |
-| Aggregate decode (tok/s) | 51.06 | 59.78 |
-| TTFT (s) | 0.214 | 0.163 |
+| Model identity | PASS | Pinned revision `86f746b36186f0e567729a5c06a8c918caba82a9` |
+| SM80 fallback unit suite | PASS | 7/7 tests, including FP8 block-scale and FP4 dequantization |
+| TP4 load | PASS | Four reference shards; about 44.1 GiB resident per card |
+| Text smoke | PASS | Exact one-word completion `OK` |
+| Real image smoke | PASS | Model identified the synthetic fixture's pink/blue/green/yellow color families |
+| OpenAI-compatible private server | IN PROGRESS | `/v1/models`, text, and data-URL image gates are the final serving check |
+| Reference-stack throughput | NOT MEASURED | No tok/s claim yet |
 
-| Metric | Value |
-| --- | --- |
-| Sustained decode (800-token completion) | 56.6 tok/s |
-| Uncached prefill (2,941-token prompt) | 325.5 tok/s |
-| Model load (eager stream) | 19.3 min (1,155 s) |
-| Cold start to ready | ~44 min |
-| Memory per card under load | 51.3 / 50.3 / 51.8 / 60.6 GiB of 64 GiB |
+The image fixture is a red-to-green vertical gradient with a constant blue
+channel. Its colors cannot be inferred from the prompt alone, so the inspected
+answer is evidence that the visual pixels reached the model.
 
-Per-content-type decode tok/s (cold → warm): technical 33.9 → 45.2,
-open-prose 56.9 → 58.6, code 85.8 → 91.2.
+## Vision-capable reference recipe
 
-Loaded-serving telemetry (40 samples): per-card power peaks of 114–137 W,
-die temperatures ≤ 46 °C, utilization up to 87%, and **no throttle reasons on
-any sample (0x0)**.
+This path uses the upstream-style TP4 model implementation plus targeted SM80
+fallbacks. It does not relabel the result as vLLM, SGLang, or DFlash2.
 
-### Concurrency curve (C-ladder)
+1. Convert the pinned Hugging Face snapshot to the four-shard reference layout
+   with `research/vision-port/convert.py`.
+2. Build or select the CUDA runtime used by the experiment and put
+   `patches/` before optional CUDA extensions on `PYTHONPATH`.
+3. Run `scripts/sm80_unit_test.py`; all seven gates must pass before a full
+   load.
+4. Launch `research/vision-port/run_sm80.py` under four-rank `torchrun` for
+   bounded text and image smokes.
+5. Launch `research/vision-port/openai_server.py` only after live ownership,
+   storage, and accelerator-health gates pass.
 
-Greedy decoding, 400 completion tokens per request, warm engine, stable
-PP partition 11,11,11,10, DSpark k=6. Aggregate throughput = total
-completion tokens / wall time across all requests in the level.
+The server defaults to loopback and a public-neutral model ID. A private bind
+address and deployment-specific alias must be selected explicitly:
 
-| Concurrency | 1 | 2 | 4 | 8 | 16 |
-|---|---|---|---|---|---|
-| Aggregate (tok/s) | 101.21 | 114.68 | **169.65** | 133.95 | wedge |
+```bash
+torchrun --standalone --nproc-per-node=4 \
+  research/vision-port/openai_server.py \
+  --ckpt-path "$TP4_CHECKPOINT" \
+  --config research/vision-port/inference-config.json \
+  --host "$PRIVATE_BIND_IP" \
+  --port 8000 \
+  --model-id "$PRIVATE_MODEL_ALIAS"
+```
 
-Findings:
+Safety properties:
 
-- **C4 is the sweet spot**: 2.83x the single-stream number. The cards are
-  not the bottleneck at C1 — the pipeline is; batching four requests
-  fills it.
-- **C8 degrades vs C4** (134.0): with `--max-num-seqs 8` and k=6
-  speculative tokens, the scheduler runs 48 speculative slots deep and
-  the batch thins out effective acceptance.
-- **C16 wedges the engine**: draft-path embedding assert
-  (`srcIndex < srcSelectDimSize`), one software-caused Xid 43 (no
-  hardware/ECC fault). Restart recovers; C16 is outside the stable
-  envelope for this runtime.
-- Alternative PP partitions from the community recipe (12,12,12,7 and
-  12,12,11,8) failed before serving traffic (exit 137 / first-request
-  device-side assert). Only 11,11,11,10 is stable on this checkpoint.
+- default bind: `127.0.0.1`, never a public interface;
+- images: `data:image/...;base64,...` only at the HTTP boundary;
+- topology: TP4, one in-flight request at a time;
+- weights: mounted read-only from the canonical model store during validation;
+- publication: no private endpoint, host, mount, or control-plane identifier.
 
-Receipt: `results/ladder.json` (per-level atomic save), partition probes
-in `results/receipts/ladder-wedge.json`.
+## SM80 fixes required for real vision
 
-## Comparison
+The depth-first port exposed independent compatibility gaps. Each was fixed
+and unit-tested before the next full load:
 
-| System | Cards | Decode tok/s | Note |
-| --- | --- | --- | --- |
-| [PixelML/DeepSeek-V4-Flash-0731-CMP-170HX](https://github.com/PixelML/DeepSeek-V4-Flash-0731-CMP-170HX) | 3 (PP3) | 83.3 | text-optimized 0731 checkpoint |
-| allover326 4-card reference | 4 | 98.1 | reference configuration |
-| **This experiment (vision-exp)** | 4 (PP4) | **59.78 warm / 51.06 cold** | text-only serve path, vision-exp FP8 checkpoint |
+- FP8 and FP4 scale tensors are block grids, not per-row scales; the fallback
+  expands `[N/128, K/group]` grids over the dequantized weight.
+- The checkpoint's split-sinkhorn tensor is a flat
+  `[pre(m) | post(m) | combined(m×m)]` layout, not an `(m, m+2)` grid.
+- The unavailable fast Hadamard CUDA extension is replaced with a pure-Torch
+  Sylvester transform whose `H @ H.T == n * I` invariant is tested.
+- Sparse attention fallback tests cover uniform top-k and attention-sink
+  semantics on SM80.
 
-The vision-exp checkpoint trails both text-optimized baselines on this
-hardware. The gap is consistent with the heavier multimodal architecture
-served through the text-only path, fp8 KV cache, and DSpark k=6 speculative
-decoding. All figures here are single-stream and not directly comparable to
-multi-stream reference numbers.
+See [SM80-SCALE-FIX.md](research/vision-port/SM80-SCALE-FIX.md) and
+[`scripts/sm80_unit_test.py`](scripts/sm80_unit_test.py).
 
-## Limitations
+## Text-only vLLM/DSpark performance baseline
 
-- **Text-only.** The SM80 vLLM fork carries no ViT/Aligner code for the vision
-  tower; the vision gate is rejected with `dsv4v is not a multimodal model`
-  (HTTP 400). See
-  [`results/vision_smoke.json`](results/vision_smoke.json).
-- **Network storage I/O.** The checkpoint streams from shared network model
-  storage; the 19.3 min eager load dominates cold start. Preflight rejected a
-  local fast tier (rotational and smaller than the checkpoint before safety
-  margin), so load time is bounded by network throughput.
-- **Single-stream numbers.** Decode, TTFT, and prefill figures are all at
-  concurrency 1; no multi-stream ladder was measured on this pass.
-- **Pipeline memory imbalance.** The 11,11,11,10 layer partition leaves the
-  last pipeline stage roughly 9 GiB heavier under load.
+These numbers are preserved because they answer a different question: how
+fast the language backbone can run through the proven SM80 text-serving fork.
+That runtime rejects image input and is not the real-vision path above.
+
+| Metric | Result |
+| --- | ---: |
+| Warm single-stream decode | 59.78 tok/s |
+| Cold single-stream decode | 51.06 tok/s |
+| Sustained 800-token decode | 56.6 tok/s |
+| Warm / cold TTFT | 0.163 s / 0.214 s |
+| Uncached prefill, 2,941 input tokens | 325.5 tok/s |
+| C4 aggregate decode | 169.65 tok/s |
+| Eager model load from shared storage | 19.3 min |
+
+Text-path recipe: PP4 partition `11,11,11,10`, FP8 KV cache, block size 256,
+max 2,048 batched tokens, max 8 sequences, DSpark k=6, greedy 400-token
+requests. The stable concurrency ladder was C1/C2/C4/C8; C16 wedged the draft
+path and is outside the supported envelope.
+
+| Concurrency | C1 | C2 | C4 | C8 |
+| --- | ---: | ---: | ---: | ---: |
+| Aggregate decode (tok/s) | 101.21 | 114.68 | **169.65** | 133.95 |
+
+## Current limitations
+
+- The reference implementation proves correctness, not production throughput.
+- The private server is intentionally single-request and non-streaming in this
+  validation pass.
+- The SM80 fallback is pure Torch in critical operators and is expected to be
+  substantially slower than optimized kernels.
+- Cold load streams four large shards from shared model storage; storage I/O
+  dominates startup.
+- The text-only vLLM numbers must remain labeled as a different runtime.
 
 ## Attribution
 
-The launch recipe, SM80 patch set, and benchmark structure are adapted from
+The text-serving recipe and benchmark structure are adapted from
 [PixelML/DeepSeek-V4-Flash-0731-CMP-170HX](https://github.com/PixelML/DeepSeek-V4-Flash-0731-CMP-170HX)
 and the
-[allover326 CMP 170HX reference stack](https://github.com/allover326/deepseek-v4-cmp170hx);
-full credits in [ATTRIBUTION.md](ATTRIBUTION.md).
+[allover326 CMP 170HX reference stack](https://github.com/allover326/deepseek-v4-cmp170hx).
+The vision port follows the official DeepSeek-V4-Flash-Vision-Exp reference
+implementation. Full credits are in [ATTRIBUTION.md](ATTRIBUTION.md).

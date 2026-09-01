@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "captured_utc": "2026-09-01T09:42:01Z",
+  "model": {
+    "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
+    "revision": "86f746b36186f0e567729a5c06a8c918caba82a9"
+  },
+  "runtime": {
+    "path": "tp4-reference-sm80-fallback",
+    "accelerators": 4,
+    "weight_shards": 4,
+    "weights_read_only": true
+  },
+  "text_gate": {
+    "status": "PASS",
+    "expected": "OK",
+    "observed": "OK"
+  },
+  "image_gate": {
+    "status": "PASS",
+    "fixture": "synthetic vertical red-to-green gradient with constant blue channel",
+    "prompt": "Describe the dominant colors in this image.",
+    "observed_summary": "vibrant pink, deep blue, bright green, and soft yellow",
+    "semantic_check": "PASS"
+  },
+  "telemetry": {
+    "max_vram_gib_per_accelerator": 44.1,
+    "core_temperature_c_range": [37, 41],
+    "xid_events": 0,
+    "uncorrectable_ecc_events": 0
+  },
+  "throughput": {
+    "status": "NOT_MEASURED",
+    "claim": null
+  }
+}

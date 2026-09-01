@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "experiment_id": "deepseek-v4-flash-vision-exp-cmp-170hx-2026-08-31",
-  "state": "RUNNING_LOAD_GATE",
+  "state": "RUNNING_PRIVATE_SERVER_GATE",
   "model": {
     "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
     "revision": "86f746b36186f0e567729a5c06a8c918caba82a9",
@@ -15,11 +15,19 @@
     "compute_capability": "8.0"
   },
   "runtime": {
+    "path": "text-only-vllm-baseline",
     "engine": "source-built SM80 vLLM fork",
     "revision": null,
     "revision_status": "source revision unavailable from running image",
     "image_content_id": "sha256:0e33b051516583ac8f9d2449a5d9889cadad8e43c121cc454d597c251986ddbe",
     "cuda_arch_list": "8.0"
+  },
+  "vision_runtime": {
+    "path": "tp4-reference-sm80-fallback",
+    "repository_revision": "b70923c",
+    "weight_shards": 4,
+    "accelerators": 4,
+    "openai_compatible_server": "pending-live-verification"
   },
   "protocol": {
     "max_model_len": 16384,
@@ -35,6 +43,7 @@
   "evidence": [
     "results/receipts/preflight.json",
     "results/receipts/import-gate.json",
-    "results/receipts/load-gate.json"
+    "results/receipts/load-gate.json",
+    "results/receipts/vision-reference-smoke.json"
   ]
 }

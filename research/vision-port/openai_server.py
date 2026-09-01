@@ -1,9 +1,10 @@
-"""Private OpenAI-compatible server for DeepSeek-V4-Flash-Vision-Exp on 4x CMP 170HX.
+"""OpenAI-compatible DeepSeek-V4-Flash-Vision-Exp server for 4x CMP 170HX.
 
 Every rank runs this module under torchrun; rank 0 serves HTTP on the
-Tailscale interface only. Requests are broadcast so all TP ranks execute
-generate() in lockstep (model.forward is collective). Model ID:
-chimera-deepseek-v4-flash-vision-exp. NOT for public exposure.
+explicitly selected interface. Requests are broadcast so all TP ranks execute
+generate() in lockstep (model.forward is collective). The safe default is
+loopback; select a private interface explicitly with ``--host`` or
+``DSV4_BIND_HOST``.
 """
 import json
 import logging
@@ -32,9 +33,11 @@ from image_processor import prepare_vl_inputs  # noqa: E402
 from generate import generate  # noqa: E402
 from model import ModelArgs, Transformer  # noqa: E402
 
-MODEL_ID = "chimera-deepseek-v4-flash-vision-exp"
-BIND_HOST = "100.120.216.70"
-BIND_PORT = 8000
+MODEL_ID = os.getenv(
+    "DSV4_SERVED_MODEL_ID", "deepseek-v4-flash-vision-exp-cmp-170hx"
+)
+BIND_HOST = os.getenv("DSV4_BIND_HOST", "127.0.0.1")
+BIND_PORT = int(os.getenv("DSV4_BIND_PORT", "8000"))
 BIRTH = time.time()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -182,14 +185,20 @@ def healthz():
 
 
 def main():
+    global ENGINE, MODEL_ID
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--ckpt-path", required=True)
     parser.add_argument("--config", required=True)
-    parser.add_argument("--host", default=BIND_HOST)
+    parser.add_argument(
+        "--host",
+        default=BIND_HOST,
+        help="Explicit listen address; defaults to loopback.",
+    )
     parser.add_argument("--port", type=int, default=BIND_PORT)
+    parser.add_argument("--model-id", default=MODEL_ID)
     args = parser.parse_args()
-    global ENGINE
+    MODEL_ID = args.model_id
     ENGINE = Engine(args.ckpt_path, args.config)
     if ENGINE.rank == 0 or ENGINE.world_size == 1:
         threading.Thread(target=uvicorn.run, kwargs={
