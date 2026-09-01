@@ -68,14 +68,14 @@
     <span class="name">PIXELML</span>
     <span class="tag">BENCHMARK CARD</span>
   </div>
-  <div class="stamp">MEASURED 2026-08-31</div>
+  <div class="stamp">MEASURED 2026-08-31 · VISION PASS 2026-09-01</div>
 </header>
 
 <h1>DeepSeek-V4-Flash-Vision-Exp</h1>
 <div class="sub">4× CMP 170HX · SM80 · 64 GiB per card · pipeline parallel 4 · fp8 KV cache · DSpark k=6</div>
 <div class="pills">
-  <span class="pill good">VERDICT: VIABLE — TEXT-ONLY</span>
-  <span class="pill warn">VISION UNSUPPORTED IN SM80 FORK</span>
+  <span class="pill good">VERDICT: VISION PASS — 3/3 GATES</span>
+  <span class="pill good">IMAGE INPUT SERVED END TO END</span>
 </div>
 
 <div class="grid">
@@ -106,8 +106,8 @@
 </div>
 
 <footer>
-  <div>PixelML · DeepSeek-V4-Flash-Vision-Exp on four-card CMP 170HX · text-only serve path</div>
-  <div class="right">Greedy 400-token decode, three content types, single stream · receipts in repository</div>
+  <div>PixelML · DeepSeek-V4-Flash-Vision-Exp on four-card CMP 170HX · TP4 vision serve path · private endpoint</div>
+  <div class="right">Greedy text + real image gates pass · vision throughput benchmarks post-staging</div>
 </footer>
 </body>
 </html>
