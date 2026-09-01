@@ -97,10 +97,62 @@ def test_hc_split_sinkhorn_flat_layout():
     for _ in range(iters - 1):
         c = c / (c.sum(axis=1, keepdims=True) + eps)
         c = c / (c.sum(axis=0, keepdims=True) + eps)
-    assert torch.allclose(pre[i].float().cpu(), torch.tensor(pre_ref), atol=1e-2), pre[i]
-    assert torch.allclose(post[i].float().cpu(), torch.tensor(post_ref), atol=1e-2), post[i]
-    assert torch.allclose(comb[i].cpu(), torch.tensor(c), atol=1e-5), comb[i]
+    assert torch.allclose(pre[i].float().cpu(), torch.tensor(pre_ref, dtype=torch.float32), atol=1e-2), pre[i]
+    assert torch.allclose(post[i].float().cpu(), torch.tensor(post_ref, dtype=torch.float32), atol=1e-2), post[i]
+    assert torch.allclose(comb[i].cpu(), torch.tensor(c, dtype=torch.float32), atol=1e-5), comb[i]
     print("hc_split_sinkhorn flat layout + norm order: PASS", flush=True)
+
+
+def test_fp4_dequant_random_scales():
+    torch.manual_seed(11)
+    N, K = 64, 256
+    raw = torch.randint(0, 256, (N, K // 2), dtype=torch.uint8, device="cuda")
+    b = raw.view(torch.float4_e2m1fn_x2)
+    # random E8M0 exponents in [-3, 3]
+    exps = torch.randint(124, 131, (N, K // 32), dtype=torch.uint8, device="cuda")
+    b_s = exps.view(torch.float8_e8m0fnu)
+    w = fb._dequant_fp4(b, b_s)
+    lut = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0]
+    # independently decode row 5
+    r5_raw, r5_exp = raw[5].tolist(), exps[5].tolist()
+    ref = []
+    for j in range(32):  # first group of 32 nibbles
+        for side in (0, 1):
+            byte = r5_raw[j + side]
+            for v in (byte & 0xF, byte >> 4):
+                pass  # placeholder
+    # simpler: recompute with torch ops on CPU from the same inputs
+    lo = (raw & 0x0F).to(torch.int64)
+    hi = (raw >> 4).to(torch.int64)
+    nib = torch.stack([lo, hi], dim=-1).flatten(-2)  # [N,K]
+    sign = torch.where(nib & 8 != 0, -1.0, 1.0)
+    mag = nib & 7
+    lut_t = torch.tensor(lut, device="cuda")
+    val = sign * lut_t[mag]  # [N,K]
+    scale = torch.exp2(exps.to(torch.int32).sub(127).float())  # [N,K//32]
+    ref2 = (val.view(N, K // 32, 32) * scale.unsqueeze(-1)).view(N, K)
+    err = (w.float() - ref2).abs().max().item()
+    assert err < 0.06, err
+    print(f"fp4 dequant random e8m0 scales: PASS (err={err:.4f})", flush=True)
+
+
+def test_fp8_dequant_block_grid_scales():
+    """Checkpoint fp8 scales are [N//128, K//128] grids; must broadcast to [N, K]."""
+    torch.manual_seed(13)
+    N, K = 256, 512  # scale grid 2 x 4
+    raw = torch.randint(-126, 126, (N, K), dtype=torch.int8, device="cuda")
+    raw[raw == -1] = -2  # 0xff is e4m3fn NaN; only NaN encodings in this range
+    b = raw.view(torch.float8_e4m3fn)
+    exps = torch.randint(124, 131, (N // 128, K // 128), dtype=torch.uint8, device="cuda")
+    b_s = exps.view(torch.float8_e8m0fnu)
+    w = fb._dequant_fp8(b, b_s)
+    val = b.to(torch.float32)
+    scale = torch.exp2(exps.to(torch.int32).sub(127).float())
+    scale = scale.repeat_interleave(128, dim=0)
+    ref2 = (val.view(N, K // 128, 128) * scale.unsqueeze(-1)).view(N, K)
+    err = (w.float() - ref2).abs().max().item()
+    assert err < 0.06, err
+    print(f"fp8 dequant block-grid scales: PASS (err={err:.4f})", flush=True)
 
 
 import torch.nn.functional as F
@@ -110,4 +162,6 @@ test_fp4_gemm_all_ones()
 test_sparse_attn_uniform_k_equals_dense()
 test_sparse_attn_sink_is_one_extra_logit()
 test_hc_split_sinkhorn_flat_layout()
+test_fp4_dequant_random_scales()
+test_fp8_dequant_block_grid_scales()
 print("SM80_FALLBACK_UNIT_TESTS_OK", flush=True)

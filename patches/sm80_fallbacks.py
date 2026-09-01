@@ -4,6 +4,28 @@ import torch
 import torch.nn.functional as F
 
 
+_HADAMARD_CACHE = {}
+
+
+def _hadamard_matrix(n: int, device) -> torch.Tensor:
+    """Sylvester H_n via kron(H, H_1); deterministic, orthogonal, no external lib."""
+    if n in _HADAMARD_CACHE:
+        return _HADAMARD_CACHE[n].to(device)
+    h = torch.tensor([[1.0, 1.0], [1.0, -1.0]], dtype=torch.float32)
+    m = h
+    while m.size(0) < n:
+        m = torch.kron(m, h)
+    assert m.size(0) == n, f"dim {n} is not a power of two"
+    _HADAMARD_CACHE[n] = m
+    return m.to(device)
+
+
+def hadamard_transform(x: torch.Tensor, scale: float = 1.0) -> torch.Tensor:
+    """Pure-torch replacement for fast_hadamard_transform (unbatched last dim)."""
+    h = _hadamard_matrix(x.size(-1), x.device)
+    return (x.float() @ h.to(x.device).t() * scale).to(x.dtype)
+
+
 def _e8m0_to_float(s: torch.Tensor) -> torch.Tensor:
     bits = s.view(torch.uint8).to(torch.int32) - 127
     return torch.exp2(bits.float())
@@ -18,7 +40,11 @@ def _dequant_fp4(b: torch.Tensor, b_s: torch.Tensor) -> torch.Tensor:
     mag = vals & 7
     lut = torch.tensor([0.0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0], device=b.device, dtype=torch.float32)
     out = sign * lut[mag]
-    scale = _e8m0_to_float(b_s)  # [N, K//32]
+    # Checkpoint scales are 2D block grids [N//128, K//32] (or per-row [N, K//32]);
+    # expand rows so each scale row covers its 128-row block.
+    scale = _e8m0_to_float(b_s)
+    if scale.size(0) != out.size(0):
+        scale = scale.repeat_interleave(out.size(0) // scale.size(0), dim=0)
     out = out.view(out.size(0), -1, 32) * scale.unsqueeze(-1)
     return out.view(out.size(0), -1).to(torch.bfloat16)
 
@@ -28,6 +54,9 @@ def _dequant_fp8(b: torch.Tensor, b_s: torch.Tensor) -> torch.Tensor:
     scale = _e8m0_to_float(b_s) if b_s.dtype == torch.float8_e8m0fnu else b_s.float()
     n = out.size(-1)
     gs = 128
+    # Same 2D block-grid layout as fp4: [N//128, K//128] (or per-row [N, K//128]).
+    if scale.size(0) != out.size(0):
+        scale = scale.repeat_interleave(out.size(0) // scale.size(0), dim=0)
     out = out.view(out.size(0), -1, gs) * scale.unsqueeze(-1)
     return out.view(out.size(0), n).to(torch.bfloat16)
 
@@ -114,8 +143,17 @@ def apply():
             mod.fp8_gemm = fp8_gemm
             mod.sparse_attn = sparse_attn
             mod.hc_split_sinkhorn = hc_split_sinkhorn
+            mod.hadamard_transform = hadamard_transform
             mod.act_quant = lambda x, *a, **k: (x, None)
             mod.fp4_act_quant = lambda x, *a, **k: x
+    import model as m
+    m.fp4_gemm = fp4_gemm
+    m.fp8_gemm = fp8_gemm
+    m.sparse_attn = sparse_attn
+    m.hc_split_sinkhorn = hc_split_sinkhorn
+    m.hadamard_transform = hadamard_transform
+    m.act_quant = lambda x, *a, **k: (x, None)
+    m.fp4_act_quant = lambda x, *a, **k: x
     import model as m
     m.fp4_gemm = fp4_gemm
     m.fp8_gemm = fp8_gemm
