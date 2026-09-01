@@ -15,7 +15,7 @@ index 92cf7c2..809d4c9 100644
          if self.index_share_for_mtp_iteration is not None:
              if self.method != "mtp" or self.draft_model_config is None:
 diff --git a/vllm/model_executor/layers/sparse_attn_indexer.py b/vllm/model_executor/layers/sparse_attn_indexer.py
-index bb3572b..413850c 100644
+index bb3572b..89d6819 100644
 --- a/vllm/model_executor/layers/sparse_attn_indexer.py
 +++ b/vllm/model_executor/layers/sparse_attn_indexer.py
 @@ -2,6 +2,8 @@
@@ -283,7 +283,23 @@ index bb3572b..413850c 100644
          )
          if use_cooperative_topk:
              workspace_manager = current_workspace_manager()
-@@ -775,10 +936,34 @@ class SparseAttnIndexer(CustomOp):
+@@ -744,6 +905,7 @@ class SparseAttnIndexer(CustomOp):
+         quant_block_size: int,
+         scale_fmt: str,
+         topk_tokens: int,
++        num_heads: int,
+         head_dim: int,
+         max_model_len: int,
+         max_total_seq_len: int,
+@@ -757,6 +919,7 @@ class SparseAttnIndexer(CustomOp):
+         self.quant_block_size = quant_block_size
+         self.scale_fmt = scale_fmt
+         self.topk_tokens = topk_tokens
++        self.num_heads = num_heads
+         self.head_dim = head_dim
+         self.max_model_len = max_model_len
+         self.max_total_seq_len = max_total_seq_len
+@@ -775,10 +938,34 @@ class SparseAttnIndexer(CustomOp):
          self.use_pcp = parallel_config.prefill_context_parallel_size > 1
          self._cp_kv_cache_interleave_size: int | None = None
          if current_platform.is_cuda() and not has_deep_gemm():
@@ -308,7 +324,7 @@ index bb3572b..413850c 100644
 +            )
 +
 +            device = topk_indices_buffer.device
-+            warmup_fp8_mqa_logits_triton(num_heads, head_dim, device)
++            warmup_fp8_mqa_logits_triton(self.num_heads, head_dim, device)
 +            block_sizes = {
 +                64,
 +                256,
@@ -316,11 +332,71 @@ index bb3572b..413850c 100644
 +            }
 +            for kernel_block_size in sorted(block_sizes):
 +                warmup_fp8_paged_mqa_logits_triton(
-+                    num_heads, head_dim, kernel_block_size, device
++                    self.num_heads, head_dim, kernel_block_size, device
 +                )
  
      @property
      def cp_kv_cache_interleave_size(self) -> int:
+diff --git a/vllm/model_executor/models/deepseek_v2.py b/vllm/model_executor/models/deepseek_v2.py
+index bc99509..cc9564b 100644
+--- a/vllm/model_executor/models/deepseek_v2.py
++++ b/vllm/model_executor/models/deepseek_v2.py
+@@ -732,6 +732,7 @@ class Indexer(nn.Module):
+             self.quant_block_size,
+             self.scale_fmt,
+             self.topk_tokens,
++            self.n_head,
+             self.head_dim,
+             self.max_model_len,
+             self.max_total_seq_len,
+diff --git a/vllm/models/deepseek_v32/amd/rocm.py b/vllm/models/deepseek_v32/amd/rocm.py
+index 6d8e7ea..f379a65 100644
+--- a/vllm/models/deepseek_v32/amd/rocm.py
++++ b/vllm/models/deepseek_v32/amd/rocm.py
+@@ -56,6 +56,7 @@ class DeepseekV32MLAAttention(DeepseekV32Attention):
+                 self.indexer.quant_block_size,
+                 self.indexer.scale_fmt,
+                 self.indexer.topk_tokens,
++                self.indexer.n_head,
+                 self.indexer.head_dim,
+                 self.indexer.max_model_len,
+                 self.indexer.max_total_seq_len,
+diff --git a/vllm/models/deepseek_v32/attention.py b/vllm/models/deepseek_v32/attention.py
+index 6a0d207..b5528bc 100644
+--- a/vllm/models/deepseek_v32/attention.py
++++ b/vllm/models/deepseek_v32/attention.py
+@@ -108,6 +108,7 @@ class DeepseekV32Indexer(nn.Module):
+             self.quant_block_size,
+             self.scale_fmt,
+             self.topk_tokens,
++            self.n_head,
+             self.head_dim,
+             self.max_model_len,
+             self.max_total_seq_len,
+diff --git a/vllm/models/deepseek_v4/attention.py b/vllm/models/deepseek_v4/attention.py
+index ce9fe06..927d921 100644
+--- a/vllm/models/deepseek_v4/attention.py
++++ b/vllm/models/deepseek_v4/attention.py
+@@ -953,6 +953,7 @@ class DeepseekV4Indexer(nn.Module):
+             self.quant_block_size,
+             self.scale_fmt,
+             self.topk_tokens,
++            self.n_head,
+             self.head_dim,
+             self.max_model_len,
+             self.max_total_seq_len,
+diff --git a/vllm/models/hy_v4/nvidia/attention.py b/vllm/models/hy_v4/nvidia/attention.py
+index 40a05f2..3e61f05 100644
+--- a/vllm/models/hy_v4/nvidia/attention.py
++++ b/vllm/models/hy_v4/nvidia/attention.py
+@@ -191,6 +191,7 @@ class Indexer(nn.Module):
+             self.quant_block_size,
+             self.scale_fmt,
+             self.topk_tokens,
++            self.n_head,
+             self.head_dim,
+             self.max_model_len,
+             self.max_total_seq_len,
 diff --git a/vllm/v1/worker/gpu/spec_decode/dspark/utils.py b/vllm/v1/worker/gpu/spec_decode/dspark/utils.py
 index 1770607..9c06f95 100644
 --- a/vllm/v1/worker/gpu/spec_decode/dspark/utils.py

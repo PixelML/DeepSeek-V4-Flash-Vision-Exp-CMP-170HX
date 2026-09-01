@@ -22,6 +22,11 @@ FILES = {
     "input_batch": "vllm/v1/worker/gpu_input_batch.py",
     "dspark": "vllm/v1/worker/gpu/spec_decode/dspark/utils.py",
     "sparse": "vllm/model_executor/layers/sparse_attn_indexer.py",
+    "deepseek_v2": "vllm/model_executor/models/deepseek_v2.py",
+    "deepseek_v32": "vllm/models/deepseek_v32/attention.py",
+    "deepseek_v32_rocm": "vllm/models/deepseek_v32/amd/rocm.py",
+    "deepseek_v4": "vllm/models/deepseek_v4/attention.py",
+    "hy_v4": "vllm/models/hy_v4/nvidia/attention.py",
     "fp8_sm80": "vllm/v1/attention/ops/fp8_sm80.py",
     "mqa_logits": "vllm/v1/attention/ops/mqa_logits_triton.py",
     "test_fp8_sm80": "tests/kernels/attention/test_dsv4_fp8_sm80.py",
@@ -199,8 +204,17 @@ def main() -> None:
         "fp8_mqa_logits_triton(",
         "fp8_paged_mqa_logits_triton(",
         "warmup_fp8_mqa_logits_triton(",
+        "self.num_heads",
         "The SM80 Triton sparse-indexer fallback supports FP8 KV cache only",
     )
+    for label in (
+        "deepseek_v2",
+        "deepseek_v32",
+        "deepseek_v32_rocm",
+        "deepseek_v4",
+        "hy_v4",
+    ):
+        require(texts[label], "SparseAttnIndexer(", "n_head")
     assert "Sparse Attention Indexer CUDA op requires DeepGEMM" not in texts["sparse"]
     require(
         texts["mqa_logits"],

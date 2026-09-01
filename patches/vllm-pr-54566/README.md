@@ -24,9 +24,10 @@ The patch makes five coordinated changes:
    Triton MQA prefill/decode implementation are restored together with their
    focused upstream tests.
 5. The sparse-index path dispatches to that fallback without DeepGEMM, primes
-   autotune before capture, preserves ordered Torch prefill top-k output,
-   bounds the prefill logits transient by row chunking, and keeps the
-   persistent decode selector Hopper-only.
+   autotune before capture using each model's explicit index head count,
+   preserves ordered Torch prefill top-k output, bounds the prefill logits
+   transient by row chunking, and keeps the persistent decode selector
+   Hopper-only.
 
 The current synchronous runner already copies
 `scheduler_output.scheduled_spec_decode_tokens` into every rank's persistent
