@@ -5,7 +5,13 @@ import runpy
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, "..", "..", "patches"))
+sys.path.insert(0, HERE)  # generate.py/model.py/kernel.py live here
+PATCHES = "/work/patches" if os.path.isdir("/work/patches") else os.path.abspath(
+    os.path.join(HERE, "..", "..", "patches"))
+sys.path.insert(0, PATCHES)
+ENCODING = "/ref/encoding" if os.path.isdir("/ref/encoding") else os.path.abspath(
+    os.path.join(HERE, "..", "encoding"))
+sys.path.insert(0, ENCODING)
 
 import sm80_fallbacks  # noqa: E402
 

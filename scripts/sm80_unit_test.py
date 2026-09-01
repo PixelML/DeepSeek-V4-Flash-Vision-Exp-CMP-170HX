@@ -79,10 +79,35 @@ def test_sparse_attn_sink_is_one_extra_logit():
     print(f"sparse_attn sink-as-extra-logit: PASS (err={err:.4f})", flush=True)
 
 
+def test_hc_split_sinkhorn_flat_layout():
+    m, iters, eps = 4, 20, 1e-6
+    n = 12
+    mixes = torch.randn(n, m * m + 2 * m, device="cuda", dtype=torch.float32)
+    scale = torch.randn(3, device="cuda")
+    base = torch.randn(m * m + 2 * m, device="cuda")
+    pre, post, comb = fb.hc_split_sinkhorn(mixes, scale, base, m, iters, eps)
+    # independent scalar reference, row 3
+    i, = (3,)
+    row = mixes[i]
+    pre_ref = [torch.sigmoid(row[j] * scale[0] + base[j]).item() + eps for j in range(m)]
+    post_ref = [2 * torch.sigmoid(row[m + j] * scale[1] + base[m + j]).item() for j in range(m)]
+    c = [[row[2 * m + j * m + k] * scale[2] + base[2 * m + j * m + k] for k in range(m)] for j in range(m)]
+    c = torch.softmax(torch.tensor(c), dim=-1).numpy() + eps
+    c = c / (c.sum(axis=0, keepdims=True) + eps)
+    for _ in range(iters - 1):
+        c = c / (c.sum(axis=1, keepdims=True) + eps)
+        c = c / (c.sum(axis=0, keepdims=True) + eps)
+    assert torch.allclose(pre[i].float().cpu(), torch.tensor(pre_ref), atol=1e-2), pre[i]
+    assert torch.allclose(post[i].float().cpu(), torch.tensor(post_ref), atol=1e-2), post[i]
+    assert torch.allclose(comb[i].cpu(), torch.tensor(c), atol=1e-5), comb[i]
+    print("hc_split_sinkhorn flat layout + norm order: PASS", flush=True)
+
+
 import torch.nn.functional as F
 
 test_fp4_dequant_matches_gemm_semantics()
 test_fp4_gemm_all_ones()
 test_sparse_attn_uniform_k_equals_dense()
 test_sparse_attn_sink_is_one_extra_logit()
+test_hc_split_sinkhorn_flat_layout()
 print("SM80_FALLBACK_UNIT_TESTS_OK", flush=True)

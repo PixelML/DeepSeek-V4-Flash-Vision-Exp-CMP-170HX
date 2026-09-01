@@ -86,8 +86,10 @@ def hc_split_sinkhorn(mixes, hc_scale, hc_base, hc_mult=4, sinkhorn_iters=20, ep
     comb=softmax(mix*scale[2]+base) rowwise, then (sinkhorn_iters-1) alternating
     row/col normalization with eps."""
     m = hc_mult
-    w = mixes.view(-1, m, m + 2).float()
-    pre_s, post_s, comb_s = w[:, :m, 0], w[:, :m, 1], w[:, :m, 2:]
+    # kernel flat layout: [pre(m) | post(m) | comb(m*m)] — NOT a (m, m+2) grid
+    flat = mixes.float()
+    pre_s, post_s = flat[..., :m], flat[..., m:2 * m]
+    comb_s = flat[..., 2 * m:].view(*flat.shape[:-1], m, m)
     hc_scale = hc_scale.float().view(3)
     hc_base = hc_base.float().view(-1)
     pre = torch.sigmoid(pre_s * hc_scale[0] + hc_base[:m]) + eps
