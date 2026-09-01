@@ -10,16 +10,17 @@
 > or ECC event**. This proves functional multimodal inference. It is not yet a
 > speed claim: reference-stack serving throughput remains unmeasured.
 
-The earlier vLLM/DSpark path is a separate, text-only performance baseline. It
-reached **59.78 tok/s warm single-stream decode**, **325.5 tok/s uncached
-prefill**, and **169.65 tok/s aggregate at C4**, but its SM80 fork does not wire
-the vision tower. Do not compare those text-path numbers to the functional
-reference path as though they came from one runtime.
+The earlier vLLM/DSpark path is a separate, text-only performance baseline. Its
+historical measurements used incompatible prompt and concurrency protocols, so
+they are intentionally not promoted here as canonical results. A normalized
+warm greedy 400-token C1/C2/C4/C8/C16 rerun is the publication gate. The C1
+optimization target is at least 100 tok/s without weakening correctness or
+stability.
 
 Evidence: [experiment notebook](notebooks/cmp-170hx-experiment.ipynb) ·
 [real-image smoke receipt](results/receipts/vision-reference-smoke.json) ·
 [text-path measurements](results/receipts/measurements.json) ·
-[text-path concurrency ladder](results/ladder.json)
+[normalized benchmark harness](bench_normalized.py)
 
 ## What passed
 
@@ -91,30 +92,33 @@ and unit-tested before the next full load:
 See [SM80-SCALE-FIX.md](research/vision-port/SM80-SCALE-FIX.md) and
 [`scripts/sm80_unit_test.py`](scripts/sm80_unit_test.py).
 
-## Text-only vLLM/DSpark performance baseline
+## Text-only vLLM/DSpark performance protocol
 
-These numbers are preserved because they answer a different question: how
-fast the language backbone can run through the proven SM80 text-serving fork.
-That runtime rejects image input and is not the real-vision path above.
+This runtime answers a different question: how fast the language backbone can
+run through the proven SM80 text-serving fork. It rejects image input and is
+not the real-vision path above.
 
-| Metric | Result |
-| --- | ---: |
-| Warm single-stream decode | 59.78 tok/s |
-| Cold single-stream decode | 51.06 tok/s |
-| Sustained 800-token decode | 56.6 tok/s |
-| Warm / cold TTFT | 0.163 s / 0.214 s |
-| Uncached prefill, 2,941 input tokens | 325.5 tok/s |
-| C4 aggregate decode | 169.65 tok/s |
-| Eager model load from shared storage | 19.3 min |
+The canonical rerun uses one fixed prompt, greedy decoding, 400 completion
+tokens, one warmup, and at least three measured repetitions at C1, C2, C4, C8,
+and C16. It records final usage objects, TTFT, success rate, inspected output,
+and actual per-request distribution. A failed C16 receives a failure label and
+no numeric point.
 
 Text-path recipe: PP4 partition `11,11,11,10`, FP8 KV cache, block size 256,
 max 2,048 batched tokens, max 8 sequences, DSpark k=6, greedy 400-token
-requests. The stable concurrency ladder was C1/C2/C4/C8; C16 wedged the draft
-path and is outside the supported envelope.
+requests.
 
-| Concurrency | C1 | C2 | C4 | C8 |
-| --- | ---: | ---: | ---: | ---: |
-| Aggregate decode (tok/s) | 101.21 | 114.68 | **169.65** | 133.95 |
+| Canonical metric | Unit and denominator | Publication status |
+| --- | --- | --- |
+| Aggregate decode | successful completion tokens / synchronized level wall second | Normalized rerun pending |
+| Per-request decode | one request's completion tokens / that request's elapsed second | Normalized rerun pending |
+| TTFT | seconds from request start to first streamed content token | Normalized rerun pending |
+
+At C1, aggregate and per-request decode are the same denominator and must be
+identical. At higher concurrency they are different measurements and are never
+compared as though interchangeable. Historical receipts remain in `results/`
+for auditability but are explicitly non-comparable and superseded for public
+claims.
 
 ## Current limitations
 

@@ -24,7 +24,9 @@ FORBIDDEN = {
     "private_path": re.compile(r"/(?:home|Users|library|models|mnt|srv)/"),
     "tracker_url": re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/issues/\d+"),
     "private_tracker_name": re.compile("(?i)" + "seanphan" + r"/pixelml"),
-    "private_issue_shorthand": re.compile(r"(?i)(?:pixelml)?#\d+\b"),
+    "private_issue_shorthand": re.compile(
+        r"(?i)\b(?:issue|ticket|tracker|pixelml)\s*#\d+\b"
+    ),
     "private_tailnet_ipv4": re.compile(r"\b100\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"),
     "private_host_alias": re.compile(
         r"(?i)\b(?:" + "agent-" + "sandbox" + r"|" + "chi" + "mera" + r"\.tail\S*)\b"

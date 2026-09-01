@@ -82,8 +82,8 @@ def main() -> None:
         {
             "type": "text",
             "text": (
-                "Describe the dominant color change in this synthetic image in one "
-                "short sentence. Mention red and green."
+                "Describe the dominant color transition in this synthetic image in "
+                "one short sentence. Do not infer anything from the filename."
             ),
         },
         {
