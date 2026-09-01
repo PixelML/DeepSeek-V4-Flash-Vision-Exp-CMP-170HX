@@ -125,16 +125,15 @@ class Engine:
         # threads, so re-assert it here or tokens land on CPU.
         torch.set_default_device("cuda")
         clean, images = strip_to_text_and_images(messages)
-        case = {"messages": clean}
         if images:
-            # Server-side extraction already produced ordered image records.
-            # Strip placeholders so encoding-side validation cannot reject
-            # the special image token it is designed to guard against.
-            for m in clean:
-                m["content"] = m["content"].replace(IMAGE_PLACEHOLDER, "")
-            prompt, _ = encode_case(case, "chat")
-            image_records = images
+            # Pass original multimodal messages straight through encode_case:
+            # encoding-side extraction inserts the placeholder token and
+            # returns ordered image records; server-side stripping is not
+            # needed and would remove the token the tokenizer must expand.
+            case = {"messages": messages}
+            prompt, image_records = encode_case(case, "chat")
         else:
+            case = {"messages": clean}
             prompt, image_records = encode_case(case, "chat")
         prompt_tokens, image_inputs = prepare_vl_inputs(
             prompt, image_records, self.tokenizer, self.args)
