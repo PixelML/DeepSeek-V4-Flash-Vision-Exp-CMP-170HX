@@ -1,0 +1,8 @@
+image: dsv4-vision:routeb
+image_id: sha256:31e9eebea76069d3482cf48638686f6f0f625b780e65bd3fcdd1ff9b5ddcb69b
+created: 2026-09-01T21:15:35Z
+pr_head: bac85bf87949e0db2d0e16c5488d6759a1b84f70
+vllm_head: 2c8af2197ce4b79ce3285724b9a9c69d3f878116
+patch_sha256: 9b626c6b232ce33b11383646b502eb62427287ae28abc4c17164c99a36d6599f
+compile_minutes: ~62
+gates: custom-ops import PASS; forward-port validator PASS
