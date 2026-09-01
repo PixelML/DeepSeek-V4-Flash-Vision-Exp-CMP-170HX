@@ -159,6 +159,7 @@ class Engine:
 
 
 ENGINE: Engine = None
+ENGINE_LOCK = threading.Lock()  # serialize broadcast/generate across HTTP threads
 app = FastAPI(title="DeepSeek-V4-Flash-Vision-Exp private server", version="1.0.0")
 
 
@@ -174,7 +175,8 @@ def list_models():
 def chat_completions(req: ChatRequest):
     if req.model != MODEL_ID:
         raise HTTPException(404, f"unknown model: {req.model}")
-    result = ENGINE.run_rank0(req.messages, req.max_tokens, req.temperature)
+    with ENGINE_LOCK:
+        result = ENGINE.run_rank0(req.messages, req.max_tokens, req.temperature)
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
         "object": "chat.completion", "created": int(time.time()),
