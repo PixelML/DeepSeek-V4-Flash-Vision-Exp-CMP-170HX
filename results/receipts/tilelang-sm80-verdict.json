@@ -1,0 +1,15 @@
+{
+  "date": "2026-09-01T02:05:00Z",
+  "gate": "tilelang SM80 FP8/FP4 GEMM compatibility (cheapest bounded GPU test, single kernel, GPU 0 only)",
+  "verdict": "FAIL_AS_IS",
+  "device": "NVIDIA Graphics Device (CMP 170HX), capability sm80",
+  "environment": "dsv4-vision:full container; tilelang 0.1.12; torch 2.13.0+cu130",
+  "evidence": [
+    "fp4_gemm JIT compile: OK on sm80",
+    "fp4_gemm device run: CUDA device-side assert — cute::SM89_16x8x32_F32E4M3E4M3F32_TN used without CUTE_ARCH_MMA_SM89_ENABLED (FP8 tensor-core mma does not exist on sm80)",
+    "fp8_gemm: same kernel family (T.gemm on FP8 operands), same expected failure"
+  ],
+  "implication": "Reference inference cannot use tilelang FP8/FP4 GEMMs on CMP 170HX. Fallback: BF16 W4A16/W8A16 dequant in linear() + BF16 tensor cores. Vision tower is plain BF16 SDPA and unaffected.",
+  "artifacts": ["scripts/tl_sm80_test.py", "/tmp/tl-sm80-run2.log (host-local)"],
+  "other_kernels": "sparse_attn and hc_split_sinkhorn also use T.gemm on FP8-cast operands (same SM89 mma risk); both get PyTorch fallbacks in the SM80 shim"
+}
