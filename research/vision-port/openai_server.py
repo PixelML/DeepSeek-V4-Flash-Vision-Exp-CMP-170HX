@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 import uuid
+from datetime import timedelta
 from typing import Any, Dict, List
 
 import torch
@@ -28,9 +29,12 @@ sys.path.insert(0, os.path.abspath(ENCODING_DIR))
 
 import sm80_fallbacks  # noqa: E402,F401  (installed via PYTHONPATH=/work/patches)
 from encoding_dsv4 import encode_case  # noqa: E402
+from encoding_dsv4 import IMAGE_PLACEHOLDER  # noqa: E402
 from image_processor import prepare_vl_inputs  # noqa: E402
 from generate import generate  # noqa: E402
 from model import ModelArgs, Transformer  # noqa: E402
+
+sm80_fallbacks.apply()  # replace tilelang SM89 kernels with SM80-safe fallbacks
 
 MODEL_ID = "chimera-deepseek-v4-flash-vision-exp"
 BIND_HOST = "100.120.216.70"
@@ -69,7 +73,7 @@ def strip_to_text_and_images(messages: List[Dict[str, Any]]):
                 if not url.startswith("data:image/"):
                     raise HTTPException(400, "only data: image URLs are supported")
                 images.append({"url": url})
-                text_parts.append("<image></image>")
+                text_parts.append(IMAGE_PLACEHOLDER)
             else:
                 raise HTTPException(400, f"unsupported content block type: {btype}")
         clean.append({"role": m["role"], "content": "".join(text_parts)})
@@ -84,7 +88,7 @@ class Engine:
         self.rank = int(os.getenv("RANK", "0"))
         self.local_rank = int(os.getenv("LOCAL_RANK", "0"))
         if self.world_size > 1:
-            dist.init_process_group("nccl")
+            dist.init_process_group("nccl", timeout=timedelta(hours=2))
         torch.cuda.set_device(self.local_rank)
         torch.cuda.memory._set_allocator_settings("expandable_segments:True")
         torch.set_default_dtype(torch.bfloat16)
@@ -117,11 +121,21 @@ class Engine:
 
     @torch.inference_mode()
     def run_rank0(self, messages, max_tokens, temperature):
+        # torch default device is thread-local; FastAPI handlers run in worker
+        # threads, so re-assert it here or tokens land on CPU.
+        torch.set_default_device("cuda")
         clean, images = strip_to_text_and_images(messages)
         case = {"messages": clean}
-        prompt, image_records = encode_case(case, "chat")
         if images:
+            # Server-side extraction already produced ordered image records.
+            # Strip placeholders so encoding-side validation cannot reject
+            # the special image token it is designed to guard against.
+            for m in clean:
+                m["content"] = m["content"].replace(IMAGE_PLACEHOLDER, "")
+            prompt, _ = encode_case(case, "chat")
             image_records = images
+        else:
+            prompt, image_records = encode_case(case, "chat")
         prompt_tokens, image_inputs = prepare_vl_inputs(
             prompt, image_records, self.tokenizer, self.args)
         t0 = time.perf_counter()
