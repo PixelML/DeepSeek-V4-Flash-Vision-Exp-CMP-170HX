@@ -54,6 +54,7 @@ def main() -> None:
         "results/receipts/import-gate.json",
         "results/receipts/load-gate.json",
         "results/receipts/vision-reference-smoke.json",
+        "results/receipts/vllm-vision-integration-plan.json",
         "results/vision_smoke.json",
         "notebooks/cmp-170hx-experiment.ipynb",
     )
@@ -72,6 +73,8 @@ def main() -> None:
         "assets/source/deepseek-v4-vision-validation/index.motion.json",
         "assets/source/deepseek-v4-vision-validation/pixelml-logo.svg",
         "research/vision-port/openai_server.py",
+        "docs/VLLM-VISION-INTEGRATION.md",
+        "scripts/validate_vllm_vision_plan.py",
         "scripts/verify_private_server.py",
     )
     for relative in required_files:
@@ -94,6 +97,17 @@ def main() -> None:
     if status["phases"][-1]["status"] in {"PASS", "COMPLETE"}:
         assert code_cells and all(cell["execution_count"] is not None for cell in code_cells)
         assert all(cell["outputs"] for cell in code_cells)
+
+    integration = load_json(
+        ROOT / "results" / "receipts" / "vllm-vision-integration-plan.json"
+    )
+    assert integration["vision_vllm"]["head"] == (
+        "2c8af2197ce4b79ce3285724b9a9c69d3f878116"
+    )
+    candidates = {item["name"]: item for item in integration["launch_candidates"]}
+    assert candidates["pp4_k3"]["priority"] == 1
+    assert candidates["pp4_k6"]["status"] == "FALLBACK_ONLY"
+    assert candidates["pp4_k5"]["status"] == "FORBIDDEN_UNLESS_VALIDATOR_PASS"
 
     live_path = ROOT / "results" / "receipts" / "openai-private-live.json"
     if status["phases"][-1]["status"] in {"PASS", "COMPLETE"}:

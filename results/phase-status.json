@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "current_phase": "publication",
+  "current_phase": "vllm_vision_integration",
   "last_completed_gate": "functional_gates",
-  "current_command": "verify the private OpenAI-compatible models, text, and real-image endpoints",
-  "blocker": "none",
-  "next_gate": "private server live verification and publication",
+  "current_command": "pin and statically validate the Vision vLLM plus SM80 PP/DSpark integration",
+  "blocker": "the active reference runtime has not reached a safe transition boundary",
+  "next_gate": "exact-source build, config/import validation, then a serialized service transition",
   "phases": [
     {"id": "identity", "status": "COMPLETE"},
     {"id": "storage_preflight", "status": "PASS"},

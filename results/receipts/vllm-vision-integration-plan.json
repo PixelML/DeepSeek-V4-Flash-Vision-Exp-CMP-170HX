@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "status": "REPO_VALIDATION_IN_PROGRESS",
+  "model": {
+    "id": "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp",
+    "revision": "86f746b36186f0e567729a5c06a8c918caba82a9",
+    "n_mtp_layers": 3,
+    "dspark_block_size": 5,
+    "dspark_target_layer_ids": [40, 41, 42]
+  },
+  "vision_vllm": {
+    "pull_request": "https://github.com/vllm-project/vllm/pull/54566",
+    "head": "2c8af2197ce4b79ce3285724b9a9c69d3f878116",
+    "base": "25efcfa7887c4a9541b6328af69dbd5fee4e8173",
+    "state": "OPEN",
+    "mergeability": "MERGEABLE",
+    "observed_updated_at": "2026-09-01T15:38:37Z",
+    "pin_policy": "Re-resolve and record any head movement before the source-build checkpoint."
+  },
+  "cmp_control": {
+    "repository": "https://github.com/PixelML/DeepSeek-V4-Flash-0731-CMP-170HX",
+    "recommended_vllm_base": "c3046d1ebd2dae9b94ad2ef5f966ea153632251e",
+    "recommended_vllm_tree": "d13ae12b9a6621ef8d218f53741e59c6db2f68d2",
+    "recipe_revision": "3dd2d8817e7deae00d998edde0d227e7254ea71e",
+    "historical_speculative_tokens": 5,
+    "reuse_scope": "SM80 sparse-attention safety logic and PP draft-relay semantics only; no blind patch overlay."
+  },
+  "delta_table": [
+    {
+      "area": "multimodal architecture",
+      "vision_head": "DeepseekV4ForConditionalGeneration implements SupportsMultiModal, SupportsPP, and SupportsEagle3",
+      "cmp_control": "text-only DeepSeek-V4 model path",
+      "action": "Retain the Vision wrapper and validate PP partitioning with image encoder ownership."
+    },
+    {
+      "area": "processor and image tokens",
+      "vision_head": "Adds multimodal preprocessing, processor, tokenizer conversion, and Vision model registration",
+      "cmp_control": "no real-image request path",
+      "action": "Use the complete Vision implementation; image and negative controls are mandatory before performance."
+    },
+    {
+      "area": "MoE routing ABI",
+      "vision_head": "Adds bias_vl and vocab_size to the topk_softplus_sqrt Python/C++/CUDA contract",
+      "cmp_control": "older compiled custom-op ABI",
+      "action": "Build the exact Vision head from source. Python bind mounts alone are invalid."
+    },
+    {
+      "area": "MTP plumbing",
+      "vision_head": "Exposes get_mtp_target_hidden_states and Vision-aware MTP modules",
+      "cmp_control": "older DSpark loader and text-only MTP path",
+      "action": "Validate three prediction layers and draft tensor shapes before load."
+    },
+    {
+      "area": "model runner",
+      "vision_head": "Changes vllm/v1/worker/gpu_model_runner.py",
+      "cmp_control": "PP relay patch targets vllm/v1/worker/gpu/model_runner.py",
+      "action": "Forward-port PP draft relay semantically to the current runner API; do not apply the old file patch."
+    },
+    {
+      "area": "sparse attention",
+      "vision_head": "Changes vllm/v1/attention/backends/mla/sparse_swa.py",
+      "cmp_control": "SM80 fallback targets model_executor/layers/sparse_attn_indexer.py",
+      "action": "Re-audit the active call path and preserve the bounded SM80 top-k fallback only where required."
+    },
+    {
+      "area": "PP DSpark",
+      "vision_head": "Vision model declares PP support but does not carry the complete validated CMP draft-relay patchset",
+      "cmp_control": "broadcast, receive, pad, scatter, and draft-embedding PP logic",
+      "action": "Forward-port and CPU-validate the relay logic against the exact Vision head."
+    },
+    {
+      "area": "speculative depth",
+      "vision_head": "Pinned model has three next-token prediction layers",
+      "cmp_control": "historical text-only recipe used k=5 for a different checkpoint",
+      "action": "Try k=3 first; k=6 is the divisible fallback; k=5 is forbidden unless the runtime validator proves it valid."
+    }
+  ],
+  "compiled_files_requiring_exact_source_build": [
+    "csrc/libtorch_stable/moe/moe_ops.h",
+    "csrc/libtorch_stable/moe/topk_softplus_sqrt_kernels.cu",
+    "csrc/libtorch_stable/moe/torch_bindings.cpp",
+    "vllm/_custom_ops.py"
+  ],
+  "required_vision_files": [
+    "vllm/models/deepseek_v4/nvidia/vl_model.py",
+    "vllm/models/deepseek_v4/nvidia/mtp.py",
+    "vllm/models/deepseek_v4/nvidia/model.py",
+    "vllm/model_executor/models/config.py",
+    "vllm/model_executor/models/registry.py",
+    "vllm/v1/worker/gpu_model_runner.py",
+    "vllm/v1/attention/backends/mla/sparse_swa.py"
+  ],
+  "pre_live_blockers": [
+    {
+      "path": "vllm/v1/worker/gpu/spec_decode/dspark/utils.py",
+      "observed_on_pinned_head": "DSpark rejects pipeline-parallel world sizes greater than one",
+      "required_resolution": "Forward-port draft embedding and PP-rank behavior, then cover it with CPU shape tests."
+    },
+    {
+      "path": "vllm/v1/worker/gpu/pp_utils.py",
+      "observed_on_pinned_head": "No draft-token broadcast, receive, or padding relay is present",
+      "required_resolution": "Forward-port the CMP relay semantics to the current PP API and test rank-local tensor shapes."
+    },
+    {
+      "path": "vllm/config/speculative.py",
+      "observed_on_pinned_head": "The draft configuration inherits the target pipeline-parallel size",
+      "required_resolution": "Apply the validated single-rank draft policy without weakening target PP4."
+    },
+    {
+      "path": "vllm/model_executor/layers/sparse_attn_indexer.py",
+      "observed_on_pinned_head": "The proven SM80 row-chunk and Torch top-k fallback hooks are absent",
+      "required_resolution": "Reconcile the fallback with the current Vision sparse-attention call path and add bounded CPU/static coverage."
+    }
+  ],
+  "launch_candidates": [
+    {
+      "name": "pp4_k3",
+      "priority": 1,
+      "pipeline_parallel_size": 4,
+      "speculative_method": "dspark",
+      "num_speculative_tokens": 3,
+      "probabilistic_drafting": true,
+      "adaptive_verification": false,
+      "status": "CPU_VALIDATION_PENDING",
+      "stop_condition": "Any config, divisibility, PP relay, MTP shape, image, or stability failure."
+    },
+    {
+      "name": "pp4_k6",
+      "priority": 2,
+      "pipeline_parallel_size": 4,
+      "speculative_method": "dspark",
+      "num_speculative_tokens": 6,
+      "probabilistic_drafting": true,
+      "adaptive_verification": false,
+      "status": "FALLBACK_ONLY",
+      "stop_condition": "Do not run unless k=3 is rejected for a proven PP/runtime reason and k=6 shape validation passes."
+    },
+    {
+      "name": "pp4_k5",
+      "priority": 3,
+      "pipeline_parallel_size": 4,
+      "speculative_method": "dspark",
+      "num_speculative_tokens": 5,
+      "status": "FORBIDDEN_UNLESS_VALIDATOR_PASS",
+      "stop_condition": "The pinned model's three prediction layers do not justify the historical text-only k=5 setting."
+    }
+  ],
+  "gates": [
+    "Exact Vision vLLM head and source-built custom-op ABI",
+    "Static architecture, model registry, processor, and import validation",
+    "Three MTP layers, DSpark block size five, and target layers 40/41/42",
+    "PP4 Vision wrapper placement and DSpark draft-relay tensor shapes",
+    "No adaptive verification unless PP support is proven",
+    "Models endpoint, deterministic text, real image, missing-image, and wrong-image controls",
+    "Warm greedy C1 with exactly 400 completion tokens before the concurrency ladder"
+  ],
+  "live_transition": {
+    "status": "WAITING_SAFE_BOUNDARY",
+    "active_runtime": "Vision-capable reference runtime",
+    "policy": "No GPU, service, container, model, or storage action until the active owner reaches a safe terminal checkpoint."
+  }
+}

@@ -12,14 +12,20 @@
 
 The earlier vLLM/DSpark path is a separate, text-only performance baseline. Its
 historical measurements used incompatible prompt and concurrency protocols, so
-they are intentionally not promoted here as canonical results. A normalized
-warm greedy 400-token C1/C2/C4/C8/C16 rerun is the publication gate. The C1
-optimization target is at least 100 tok/s without weakening correctness or
-stability.
+they are intentionally not promoted here as canonical results. The active
+integration plan pins the complete Vision vLLM implementation, then
+forward-ports the proven CMP PP/DSpark semantics with an exact source build.
+The first bounded candidate is PP4 + DSpark k=3; k=6 is the divisible fallback
+candidate after shape validation, while the historical text-only k=5 setting
+is not reused automatically.
+A normalized warm greedy 400-token C1/C2/C4/C8/C16 rerun remains the publication
+gate. The C1 optimization target is at least 100 tok/s without weakening
+correctness or stability.
 
 Evidence: [experiment notebook](notebooks/cmp-170hx-experiment.ipynb) ·
 [real-image smoke receipt](results/receipts/vision-reference-smoke.json) ·
 [text-path measurements](results/receipts/measurements.json) ·
+[Vision vLLM integration plan](docs/VLLM-VISION-INTEGRATION.md) ·
 [normalized benchmark harness](bench_normalized.py)
 
 ## What passed
@@ -104,9 +110,11 @@ and C16. It records final usage objects, TTFT, success rate, inspected output,
 and actual per-request distribution. A failed C16 receives a failure label and
 no numeric point.
 
-Text-path recipe: PP4 partition `11,11,11,10`, FP8 KV cache, block size 256,
-max 2,048 batched tokens, max 8 sequences, DSpark k=6, greedy 400-token
-requests.
+Historical text-path recipe: PP4 partition `11,11,11,10`, FP8 KV cache, block
+size 256, max 2,048 batched tokens, max 8 sequences, DSpark k=6, greedy
+400-token requests. This is control evidence only. The real-image vLLM path
+must first pass the exact-source Vision integration and functional gates in the
+[integration plan](docs/VLLM-VISION-INTEGRATION.md).
 
 | Canonical metric | Unit and denominator | Publication status |
 | --- | --- | --- |
