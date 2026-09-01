@@ -63,6 +63,35 @@ Loaded-serving telemetry (40 samples): per-card power peaks of 114–137 W,
 die temperatures ≤ 46 °C, utilization up to 87%, and **no throttle reasons on
 any sample (0x0)**.
 
+### Concurrency curve (C-ladder)
+
+Greedy decoding, 400 completion tokens per request, warm engine, stable
+PP partition 11,11,11,10, DSpark k=6. Aggregate throughput = total
+completion tokens / wall time across all requests in the level.
+
+| Concurrency | 1 | 2 | 4 | 8 | 16 |
+|---|---|---|---|---|---|
+| Aggregate (tok/s) | 101.21 | 114.68 | **169.65** | 133.95 | wedge |
+
+Findings:
+
+- **C4 is the sweet spot**: 2.83x the single-stream number. The cards are
+  not the bottleneck at C1 — the pipeline is; batching four requests
+  fills it.
+- **C8 degrades vs C4** (134.0): with `--max-num-seqs 8` and k=6
+  speculative tokens, the scheduler runs 48 speculative slots deep and
+  the batch thins out effective acceptance.
+- **C16 wedges the engine**: draft-path embedding assert
+  (`srcIndex < srcSelectDimSize`), one software-caused Xid 43 (no
+  hardware/ECC fault). Restart recovers; C16 is outside the stable
+  envelope for this runtime.
+- Alternative PP partitions from the community recipe (12,12,12,7 and
+  12,12,11,8) failed before serving traffic (exit 137 / first-request
+  device-side assert). Only 11,11,11,10 is stable on this checkpoint.
+
+Receipt: `results/ladder.json` (per-level atomic save), partition probes
+in `results/receipts/ladder-wedge.json`.
+
 ## Comparison
 
 | System | Cards | Decode tok/s | Note |
