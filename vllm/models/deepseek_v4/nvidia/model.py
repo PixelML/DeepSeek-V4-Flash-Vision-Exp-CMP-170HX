@@ -1541,7 +1541,23 @@ class DeepseekV4ForCausalLM(
 
     def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]) -> set[str]:
         loader = AutoWeightsLoader(self, skip_substrs=["mtp.", "vision.", "aligner.", "image_", "_vl"])
-        return loader.load_weights(weights, mapper=self.hf_to_vllm_mapper)
+        loaded_params = loader.load_weights(weights, mapper=self.hf_to_vllm_mapper)
+        # Mirror the pinned Vision head (2c8af219) ordering: self-invoke the
+        # post-load finalize step here so it always runs immediately after a
+        # real (non-dummy) weight load, before any forward pass can observe
+        # unfinalized state (e.g. hc_attn_fn_broadcast still None).
+        #
+        # This also matters for the outer VL wrapper
+        # (DeepseekV4ForConditionalGeneration.load_weights, vl_model.py):
+        # it sets `self._weights_finalized = True` right after delegating to
+        # this method, on the assumption that finalization already happened
+        # here. Without this call, that flag was set prematurely, and the
+        # wrapper's own process_weights_after_loading() (the only other
+        # place finalize_mega_moe_weights/finalize_mhc_broadcast_weights
+        # could run) then early-returned and skipped it entirely — so
+        # hc_attn_fn_broadcast was never populated for a real weight load.
+        self.process_weights_after_loading()
+        return loaded_params
 
     def process_weights_after_loading(self) -> None:
         # Model-level post-load hook: runs for every loader, including
