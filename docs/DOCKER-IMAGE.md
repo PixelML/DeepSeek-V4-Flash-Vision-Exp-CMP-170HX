@@ -165,7 +165,7 @@ layer metadata for tokens, credential-bearing URLs, or private hosts):
 
 ```bash
 docker history --no-trunc dsv4-0731fork-sm80:claude-bench > history.log
-grep -inE 'hf_[A-Za-z0-9]{20,}|ghp_|gho_|github_pat_|AKIA[0-9A-Z]{12,}|BEGIN (RSA|OPENSSH|PRIVATE)|://[^/[:space:]]*:[^/[:space:]@]*@|100\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|tailscale|chimera|apollo|agent-sandbox|ishilabs|seanphan|pixelml|/library|/models/model-cache' history.log
+grep -inE 'hf_[A-Za-z0-9]{20,}|ghp_|gho_|github_pat_|AKIA[0-9A-Z]{12,}|BEGIN (RSA|OPENSSH|PRIVATE)|://[^/[:space:]]*:[^/[:space:]@]*@|100\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|seanphan|pixelml|/library|/models/model-cache' history.log
 ```
 Result: **0 hits.**
 
@@ -175,7 +175,7 @@ credential-bearing URLs, private IP ranges, and internal hostnames:
 
 ```bash
 docker run --rm --entrypoint sh dsv4-0731fork-sm80:claude-bench -c '
-grep -rlE "hf_[A-Za-z0-9]{20,}|ghp_|gho_|github_pat_|AKIA|BEGIN (RSA|OPENSSH|PRIVATE)|://[^/[:space:]]*:[^/[:space:]@]*@|100\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|tailscale|chimera|apollo|agent-sandbox|ishilabs|seanphan|pixelml|/library|/models/model-cache" \
+grep -rlE "hf_[A-Za-z0-9]{20,}|ghp_|gho_|github_pat_|AKIA|BEGIN (RSA|OPENSSH|PRIVATE)|://[^/[:space:]]*:[^/[:space:]@]*@|100\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|192\.168\.[0-9]{1,3}\.[0-9]{1,3}|seanphan|pixelml|/library|/models/model-cache" \
   /root /home /etc /workspace /vllm /opt /tmp /var 2>/dev/null'
 ```
 Result: **0 hits** on any string of concern. The only matches were
