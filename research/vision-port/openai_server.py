@@ -1,9 +1,10 @@
 """Private OpenAI-compatible server for DeepSeek-V4-Flash-Vision-Exp on 4x CMP 170HX.
 
-Every rank runs this module under torchrun; rank 0 serves HTTP on the
-Tailscale interface only. Requests are broadcast so all TP ranks execute
-generate() in lockstep (model.forward is collective). Model ID:
-chimera-deepseek-v4-flash-vision-exp. NOT for public exposure.
+Every rank runs this module under torchrun; rank 0 serves HTTP on an
+explicitly selected private interface only. Requests are broadcast so all TP
+ranks execute generate() in lockstep (model.forward is collective). The safe
+default is loopback; select a private interface explicitly with ``--host``
+or ``DSV4_BIND_HOST``. NOT for public exposure.
 """
 import json
 import logging
@@ -36,9 +37,11 @@ from model import ModelArgs, Transformer  # noqa: E402
 
 sm80_fallbacks.apply()  # replace tilelang SM89 kernels with SM80-safe fallbacks
 
-MODEL_ID = "chimera-deepseek-v4-flash-vision-exp"
-BIND_HOST = "100.120.216.70"
-BIND_PORT = 8000
+MODEL_ID = os.getenv(
+    "DSV4_SERVED_MODEL_ID", "deepseek-v4-flash-vision-exp-cmp-170hx"
+)
+BIND_HOST = os.getenv("DSV4_BIND_HOST", "127.0.0.1")
+BIND_PORT = int(os.getenv("DSV4_BIND_PORT", "8000"))
 BIRTH = time.time()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

@@ -1,13 +1,13 @@
 {
   "gate": "vision-ready",
   "timestamp_utc": "2026-09-01T15:38:00Z",
-  "model_id": "chimera-deepseek-v4-flash-vision-exp",
-  "endpoint": "private OpenAI-compatible, Tailscale-only",
+  "model_id": "deepseek-v4-flash-vision-exp-cmp-170hx",
+  "endpoint": "private OpenAI-compatible, internal network only",
   "topology": "TP4, 4x CMP 170HX (SM80, 64 GiB each)",
   "gates": {
     "v1_models": {
       "http": 200,
-      "model_id": "chimera-deepseek-v4-flash-vision-exp"
+      "model_id": "deepseek-v4-flash-vision-exp-cmp-170hx"
     },
     "text_completion": {
       "http": 200,

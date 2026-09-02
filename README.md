@@ -6,7 +6,7 @@
 > multimodal path onto the SM80 stack (commits `b70923c`, `f4e9772`,
 > `5d0d1ca`) and passed all three endpoint gates on a private
 > OpenAI-compatible TP4 server (model id
-> `chimera-deepseek-v4-flash-vision-exp`): `/v1/models` 200, deterministic
+> `deepseek-v4-flash-vision-exp-cmp-170hx`): `/v1/models` 200, deterministic
 > text 200 (exact `OK`, 10.7 s), and a **real 64x64 gradient-image
 > completion 200** - the model described the gradient's dominant colors,
 > which appear nowhere in the prompt. Earlier text-only baseline (PP4,
@@ -34,9 +34,9 @@ record extracted per request (offline sanity 1+1 before boot). The two prior
 HTTP 500s were a validation-order defect and a token-stripping defect, both
 root-caused and receipted in the control issue.
 
-The private endpoint stays Tailscale-only; it is not wired into any public
-proxy. GPUs hold about 44.4 GiB/card at 38-39 C, no Xid/ECC events, zero
-restarts.
+The private endpoint stays on an internal network only; it is not wired into
+any public proxy. GPUs hold about 44.4 GiB/card at 38-39 C, no Xid/ECC
+events, zero restarts.
 ## Startup recipe
 
 The launch recipe lives in

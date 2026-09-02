@@ -2,7 +2,7 @@
 
 ## Status
 
-- Storage gate reopened (#57 comment 5490056484): all new CMP heavy starts and model writes/downloads HELD until #57 posts required pools >10% free + fresh passing preflight. Ack posted: 5490132898.
+- Storage gate reopened: all new CMP heavy starts and model writes/downloads HELD until the storage gate posts required pools >10% free + fresh passing preflight.
 - In-flight text smoke (started before the gate, weights mounted read-only) preserved to completion. No new runs started.
 
 ## Fix
@@ -32,7 +32,7 @@ All 7 tests PASS (SM80_FALLBACK_UNIT_TESTS_OK):
 Command:
 
     docker run --rm --gpus "device=0" \
-      -v /home/ubuntu/repos/dsv4-vision-exp-cmp170hx:/work \
+      -v "$PWD:/work" \
       dsv4-vision:full python3 /work/scripts/sm80_unit_test.py
 
 ## Test details
@@ -56,4 +56,4 @@ Command:
 - Fix: pure-torch Sylvester Hadamard in sm80_fallbacks.py + patches/fast_hadamard_transform.py shim
   (model.py imports it by name; patches/ is ahead on sys.path).
 - Unit evidence (GPU 0): H@H.T == n*I exact; transform identity err 0.0; shim import resolves.
-- Storage gate still held: no new 4-card run until #57 posts >10% free + fresh passing preflight.
+- Storage gate still held: no new 4-card run until the storage gate posts >10% free + fresh passing preflight.
