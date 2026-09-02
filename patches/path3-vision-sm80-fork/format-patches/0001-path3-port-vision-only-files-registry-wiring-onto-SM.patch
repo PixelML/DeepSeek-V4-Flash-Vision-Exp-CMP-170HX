@@ -1,0 +1,1289 @@
+From 2cb04cc1d045e1df6d383e3baa69e7f5ab00bf79 Mon Sep 17 00:00:00 2001
+From: Sean Phan <seanphan@users.noreply.github.com>
+Date: Wed, 2 Sep 2026 07:53:54 +0000
+Subject: [PATCH 1/8] path3: port vision-only files + registry wiring onto SM80
+ fork (step 1/5)
+
+Copies vl_stub.py, nvidia/vl_model.py, common/mm_preprocess.py, and
+common/vision.py unmodified from the pinned Vision head onto the proven
+SM80 fork, plus the __init__.py/registry.py wiring to expose
+DeepseekV4ForConditionalGeneration. py_compile and pyflakes pass; the
+import/CPU-unit-test gate is deferred to the in-container build (step 3)
+since vllm's platform bootstrap needs the compiled C extension on any
+host with an NVIDIA driver. Steps 2-5 (model.py/attention/cache_utils
+vision hunks, PP runner guard, build, boot, measure) not started.
+---
+ patches/path3-vision-sm80-fork/README.md      |  80 +++
+ .../deepseek_v4/common/mm_preprocess.py       | 512 ++++++++++++++++++
+ .../new-files/deepseek_v4/common/vision.py    | 232 ++++++++
+ .../new-files/deepseek_v4/nvidia/vl_model.py  | 333 ++++++++++++
+ .../new-files/deepseek_v4/vl_stub.py          |  14 +
+ .../step1-registry-wiring.diff                |  50 ++
+ 6 files changed, 1221 insertions(+)
+ create mode 100644 patches/path3-vision-sm80-fork/README.md
+ create mode 100644 patches/path3-vision-sm80-fork/new-files/deepseek_v4/common/mm_preprocess.py
+ create mode 100644 patches/path3-vision-sm80-fork/new-files/deepseek_v4/common/vision.py
+ create mode 100644 patches/path3-vision-sm80-fork/new-files/deepseek_v4/nvidia/vl_model.py
+ create mode 100644 patches/path3-vision-sm80-fork/new-files/deepseek_v4/vl_stub.py
+ create mode 100644 patches/path3-vision-sm80-fork/step1-registry-wiring.diff
+
+diff --git a/patches/path3-vision-sm80-fork/README.md b/patches/path3-vision-sm80-fork/README.md
+new file mode 100644
+index 0000000..707ad15
+--- /dev/null
++++ b/patches/path3-vision-sm80-fork/README.md
+@@ -0,0 +1,80 @@
++# Path 3 — reverse-port vision onto the proven SM80 vLLM fork
++
++Goal: make the proven SM80 vLLM fork (`f8ea5bb16` + the 8 patches used by the
++`dsv4-0731fork-sm80:claude-bench` benchmark image) serve
++`deepseek-ai/DeepSeek-V4-Flash-Vision-Exp` (rev `86f746b3`) with real image
++input, by porting the vision path from the pinned Vision head
++(`2c8af2197ce4b79ce3285724b9a9c69d3f878116`) onto the fork, which already
++carries the SM80 sparse-MLA backend (`ampere/ampere_sparse.py`) that the
++pinned head lacks.
++
++Background: a separate attempt (Route B — bind-mounting patches onto the
++pinned Vision head image directly, no source port) failed at kernel warmup
++because the pinned head's sparse-MLA attention backends only declare support
++for compute capability 9/10/12 (Hopper/Blackwell) and no SM80
++implementation exists there at all. That is the reason for this reverse-port
++approach instead.
++
++## Step 1 — vision-only files + registry wiring (this commit)
++
++Ported unmodified (new files, no fork-side equivalent existed):
++
++- `vllm/models/deepseek_v4/vl_stub.py` (14 lines)
++- `vllm/models/deepseek_v4/nvidia/vl_model.py` (333 lines)
++- `vllm/models/deepseek_v4/common/mm_preprocess.py` (512 lines)
++- `vllm/models/deepseek_v4/common/vision.py` (232 lines)
++
++Copies are under `new-files/deepseek_v4/` here for reproducibility (apply
++into `vllm/models/deepseek_v4/...` in a checkout of the fork at `f8ea5bb16`).
++
++Wiring changes, captured as `step1-registry-wiring.diff`:
++
++- `vllm/models/deepseek_v4/__init__.py` — re-export
++  `DeepseekV4ForConditionalGeneration` per platform branch (nvidia/vl_model,
++  amd+xpu fall back to the stub), same shape as the pinned head.
++- `vllm/model_executor/models/registry.py` — add
++  `DeepseekV4ForConditionalGeneration` to `_MULTIMODAL_MODELS`.
++
++Dependency check before porting: the 4 files' imports resolve against
++generic vLLM infra (`vllm.config.multimodal`, `vllm.multimodal.processing.*`,
++`vllm.model_executor.layers.attention.mm_encoder_attention`,
++`vllm.transformers_utils.configs.deepseek_v4`) which already exist in the
++fork tree, and the one deepseek_v4-internal symbol they need
++(`_make_deepseek_v4_weights_mapper`, from `nvidia/vl_model.py`) already
++exists in the fork's `nvidia/model.py`. No adaptation needed for these 4
++files beyond a straight copy.
++
++### Static gates run
++
++- `python3 -m py_compile` on all 6 changed/added files: PASS.
++- `python3 -m pyflakes` (undefined-name scan) on the 4 new files: PASS, no
++  output.
++- Full `python -c "import vllm...deepseek_v4"` smoke test and the CPU
++  preprocessor unit test (64x64 PNG -> expected placeholder count): **not
++  run yet**. Confirmed blocked on this host: `vllm/platforms/cuda.py` is
++  imported unconditionally during `vllm/__init__.py` bootstrap on any host
++  with an NVIDIA driver present, and that import requires the compiled
++  `vllm._C_stable_libtorch` extension, which only exists after a full source
++  build (matches `club-170hx/docs/LESSONS.md` section b: "full source build
++  required whenever a patch touches `csrc/`... precompiled wheel lacks
++  `vllm._C`"). Deferred to the in-container import gate in step 3.
++
++## Not started yet (steps 2-5)
++
++- Step 2: re-derive the vision hunks in `nvidia/model.py` (image-embedding
++  merge, `bias_vl` MoE routing mask threaded to all PP ranks),
++  `common/ops/cache_utils.py`, `attention.py`, plus the non-first-PP-rank
++  `input_ids` runner guard. This is the highest-risk step: diffing the
++  fork's `nvidia/model.py` against the pinned head's shows the two files
++  have also drifted apart on unrelated upstream changes (MegaMoE
++  shared-expert fusion, sequence-parallel ops, `flashinfer_moe_ep`) that are
++  not vision-related, so the vision hunks must be hand-extracted rather than
++  applied as a straight diff.
++- Step 3: image build.
++- Step 4: boot + gates (`/v1/models`, deterministic text, real image, golden
++  corpus diff, C1/C2/C4/C8 ladder).
++- Step 5: leave the server running.
++
++Per the task's own estimate this reverse-port is ~18-30 engineering hours
++across 8-10 files, medium-high risk; this commit covers the lowest-risk
++quarter of file 1 of that scope.
+diff --git a/patches/path3-vision-sm80-fork/new-files/deepseek_v4/common/mm_preprocess.py b/patches/path3-vision-sm80-fork/new-files/deepseek_v4/common/mm_preprocess.py
+new file mode 100644
+index 0000000..919146c
+--- /dev/null
++++ b/patches/path3-vision-sm80-fork/new-files/deepseek_v4/common/mm_preprocess.py
+@@ -0,0 +1,512 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""Multimodal preprocessing for the DeepSeek-V4 vision variants
++(DeepSeek-V4-Flash-Vision-Exp).
++
++The image transform and sentinel-block construction are ported from the
++official repository's ``image_processor.py`` so that token counts bit-match
++the reference. Each ``<｜deepseek_image｜>`` placeholder in the prompt expands
++to a variable-length block of sentinel tokens; only positions with
++``type == IMAGE`` receive vision embeddings, the other sentinels are looked
++up from learned embedding vectors in the model.
++
++Unlike the reference (which uses out-of-vocab ids ``vocab_size + type``),
++the sentinel block borrows five consecutive reserved tokenizer tokens
++(``<|place_holder_mm_span_0431|>`` .. ``_0435|>``): they are special tokens
++the tokenizer never emits from plain text, so the ids stay in-vocabulary and
++work with stock token validation, logprobs and detokenization. The ids are
++pure markers — every sentinel position's embedding is overwritten with
++vision/sentinel vectors before the decoder layers see it, exactly like the
++reference's out-of-vocab scheme.
++"""
++
++import math
++from collections.abc import Mapping, Sequence
++from typing import Any, cast
++
++import numpy as np
++import torch
++from PIL import Image, ImageOps
++from transformers import BatchFeature
++from typing_extensions import assert_never
++
++from vllm.config.multimodal import BaseDummyOptions, ImageDummyOptions
++from vllm.inputs import MultiModalDataDict
++from vllm.multimodal.inputs import MultiModalFieldConfig, MultiModalKwargsItems
++from vllm.multimodal.parse import ImageSize, MultiModalDataItems
++from vllm.multimodal.processing import (
++    BaseDummyInputsBuilder,
++    BaseMultiModalProcessor,
++    BaseProcessingInfo,
++    PromptReplacement,
++    PromptUpdate,
++    PromptUpdateDetails,
++)
++from vllm.multimodal.processing.processor import (
++    MultiModalPromptUpdates,
++    MultiModalPromptUpdatesApplyResult,
++    PlaceholderFeaturesInfo,
++    UpdateMode,
++    _plan_prompt_updates,
++)
++from vllm.transformers_utils.configs.deepseek_v4 import DeepseekV4Config
++
++IMAGE_START, IMAGE_PAD, IMAGE, IMAGE_NEW_LINE, IMAGE_END = range(5)
++COMPRESS_PAD_TO = 4
++
++IMAGE_PLACEHOLDER = "<｜deepseek_image｜>"
++
++# Sentinel roles borrow five consecutive ``<|place_holder_mm_span_XXXX|>``
++# tokens (reserved special tokens, never emitted from plain text). The order
++# must match IMAGE_START..IMAGE_END above so that
++# ``id == IMAGE_SENTINEL_BASE_ID + type``.
++IMAGE_SENTINEL_BASE_ID = 129257
++IMAGE_SENTINEL_TOKEN_NAMES = (
++    "<|place_holder_mm_span_0431|>",  # IMAGE_START
++    "<|place_holder_mm_span_0432|>",  # IMAGE_PAD
++    "<|place_holder_mm_span_0433|>",  # IMAGE
++    "<|place_holder_mm_span_0434|>",  # IMAGE_NEW_LINE
++    "<|place_holder_mm_span_0435|>",  # IMAGE_END
++)
++
++
++def image_sentinel_mask(token_ids: torch.Tensor) -> torch.Tensor:
++    """Boolean mask for image-block sentinel positions (in-vocab ids)."""
++    return (token_ids >= IMAGE_SENTINEL_BASE_ID) & (
++        token_ids < IMAGE_SENTINEL_BASE_ID + len(IMAGE_SENTINEL_TOKEN_NAMES)
++    )
++
++
++def validate_image_sentinel_ids(tokenizer) -> None:
++    """Check the borrowed sentinel ids against the tokenizer."""
++    for i, name in enumerate(IMAGE_SENTINEL_TOKEN_NAMES):
++        token_id = tokenizer.convert_tokens_to_ids(name)
++        if token_id != IMAGE_SENTINEL_BASE_ID + i:
++            raise ValueError(
++                f"Image sentinel token {name!r} has id {token_id}, expected "
++                f"{IMAGE_SENTINEL_BASE_ID + i}; the DeepSeek-V4 vision "
++                "sentinel block requires these consecutive reserved ids."
++            )
++
++
++def grid_tokens(best_height, best_width, patch_size, downsample_ratio):
++    """Number of LLM tokens the aligner grid occupies (N-layout, including
++    row/align padding)."""
++    n_llm_h = math.ceil((best_height // patch_size) / downsample_ratio)
++    n_llm_w = math.ceil((best_width // patch_size) / downsample_ratio)
++    num_tokens = n_llm_h * (n_llm_w + 1) + 2
++    if n_llm_h % 2 == 1:
++        num_tokens += n_llm_w + 1
++    num_tokens += (n_llm_h + 1) // 2 * (n_llm_w + 1) % 2 * 2
++    return n_llm_h, n_llm_w, num_tokens
++
++
++def solve_resize_ratio(height, width, patch_size, downsample_ratio, max_n_token):
++    r = height / width
++    max_w_float = math.sqrt((max_n_token - 2) / r + 0.25) - 0.5
++    max_h_float = max_w_float * r
++    if max_w_float < 1.0:
++        max_w = 1
++        max_h = (max_n_token - 2) // (max_w + 1)
++        if max_h % 2 == 1:
++            max_h -= 1
++        best_width = max_w * patch_size * downsample_ratio
++        best_height = max_h * patch_size * downsample_ratio
++    elif max_h_float < 2.0:
++        max_h = 2
++        max_w = ((max_n_token - 2) // max_h) - 1
++        assert max_w > 1
++        best_width = max_w * patch_size * downsample_ratio
++        best_height = max_h * patch_size * downsample_ratio
++    else:
++        max_w = math.floor(max_w_float)
++        max_h = math.floor(max_h_float)
++        if max_h % 2 == 1:
++            max_h -= 1
++        beta = min(
++            max_w * patch_size * downsample_ratio / width,
++            max_h * patch_size * downsample_ratio / height,
++        )
++        best_width = math.floor(width * beta / patch_size) * patch_size
++        best_height = math.floor(height * beta / patch_size) * patch_size
++    n_llm_h, n_llm_w, num_tokens = grid_tokens(
++        best_height, best_width, patch_size, downsample_ratio
++    )
++    return n_llm_h, n_llm_w, best_height, best_width, num_tokens
++
++
++def safe_resize(
++    height, width, best_height, best_width, patch_size, downsample_ratio, max_n_token
++):
++    max_n_token -= COMPRESS_PAD_TO - 1
++    n_llm_h, n_llm_w, num_tokens = grid_tokens(
++        best_height, best_width, patch_size, downsample_ratio
++    )
++    budget = max_n_token
++    while num_tokens > max_n_token:
++        n_llm_h, n_llm_w, best_height, best_width, num_tokens = solve_resize_ratio(
++            height, width, patch_size, downsample_ratio, budget
++        )
++        budget -= 1
++    return n_llm_h, n_llm_w, best_height, best_width
++
++
++def load_image(
++    image: Image.Image,
++    *,
++    patch_size: int,
++    downsample_ratio: int,
++    max_n_token: int,
++    min_pixels: int,
++    max_wh_ratio: float | None,
++):
++    """Transform one PIL image into ViT patches.
++
++    Same math as the reference ``load_image``, except the image is already
++    decoded (vLLM supplies PIL images instead of a record dict).
++    """
++    p = patch_size
++    image = image.convert("RGB")
++    width, height = image.size
++    if max_wh_ratio is not None and width > height * max_wh_ratio:
++        width = height * max_wh_ratio
++    if 0 < width * height < min_pixels:
++        ratio = (min_pixels / (width * height)) ** 0.5
++        width = int(width * ratio)
++        height = int(height * ratio)
++    best_width = math.ceil(width / p) * p
++    best_height = math.ceil(height / p) * p
++    n_llm_h, n_llm_w, best_height, best_width = safe_resize(
++        height, width, best_height, best_width, p, downsample_ratio, max_n_token
++    )
++    n_vit_h, n_vit_w = best_height // p, best_width // p
++    if max_wh_ratio is not None and image.width >= max_wh_ratio * image.height:
++        image = image.resize((best_width, best_height))
++    else:
++        image = ImageOps.pad(image, (best_width, best_height), color=(127, 127, 127))
++    x = torch.from_numpy(np.asarray(image, dtype=np.float32)).permute(2, 0, 1) / 255
++    x = ((x - 0.5) / 0.5).to(torch.bfloat16)
++    patches = (
++        x.reshape(3, n_vit_h, p, n_vit_w, p)
++        .permute(1, 3, 0, 2, 4)
++        .reshape(n_vit_h * n_vit_w, 3, p, p)
++    )
++    return patches, n_vit_h, n_vit_w, n_llm_h, n_llm_w
++
++
++def build_image_block(n_llm_h: int, n_llm_w: int, start_pos: int):
++    """Builds the N-layout token types (final order) and the aligner-row order
++    for IMAGE slots."""
++    compress_pad = COMPRESS_PAD_TO - 1 - start_pos % COMPRESS_PAD_TO
++    pad_h = n_llm_h % 2
++    rows = n_llm_h + pad_h
++    row_len = n_llm_w + 1
++    pad_last = rows // 2 * row_len % 2 * 2
++    types = torch.tensor(
++        ([IMAGE] * n_llm_w + [IMAGE_NEW_LINE]) * n_llm_h
++        + [IMAGE_PAD] * (row_len * pad_h),
++        dtype=torch.int64,
++    )
++    order = torch.arange(rows * row_len).view(rows // 2, 2, row_len)
++    order = order.transpose(1, 2).reshape(-1)
++    image_idx = torch.full((rows * row_len,), -1, dtype=torch.int64)
++    image_idx.view(rows, row_len)[:n_llm_h, :n_llm_w] = torch.arange(
++        n_llm_h * n_llm_w
++    ).view(n_llm_h, n_llm_w)
++    perm = image_idx[order]
++    perm = perm[perm >= 0]
++    types = torch.cat(
++        [
++            torch.full((compress_pad,), IMAGE_PAD, dtype=torch.int64),
++            torch.tensor([IMAGE_START]),
++            types[order],
++            torch.full((pad_last,), IMAGE_PAD, dtype=torch.int64),
++            torch.tensor([IMAGE_END]),
++        ]
++    )
++    return types, perm
++
++
++def build_image_block_pad_free(n_llm_h: int, n_llm_w: int):
++    """``build_image_block`` without the position-dependent compressor pad.
++
++    ``start_pos`` is chosen so that ``compress_pad == 0``; the pad is instead
++    prepended when the block is spliced into the final prompt, where its
++    position is known.
++    """
++    return build_image_block(n_llm_h, n_llm_w, COMPRESS_PAD_TO - 1)
++
++
++class DeepseekV4VLImageProcessor:
++    """Per-image transform (the PIL-input equivalent of the reference
++    ``load_image``)."""
++
++    def __init__(self, config: DeepseekV4Config) -> None:
++        super().__init__()
++        self.patch_size = config.vision_patch_size
++        self.downsample_ratio = config.vision_downsample_ratio
++        self.max_n_token = config.vision_max_n_token
++        self.min_pixels = config.vision_min_pixels
++        self.max_wh_ratio = config.vision_max_wh_ratio
++
++    def __call__(self, image: Image.Image):
++        return load_image(
++            image,
++            patch_size=self.patch_size,
++            downsample_ratio=self.downsample_ratio,
++            max_n_token=self.max_n_token,
++            min_pixels=self.min_pixels,
++            max_wh_ratio=self.max_wh_ratio,
++        )
++
++
++class DeepseekV4VLProcessor:
++    """Minimal stand-in for the HF processor of DeepSeek-V4 vision models.
++
++    The official repository ships image preprocessing as plain functions in
++    ``image_processor.py`` (no ``auto_map`` processor), so this class wraps
++    their ports directly and the model loads without ``--trust-remote-code``.
++
++    ``__call__`` returns a ``BatchFeature`` with one entry per image
++    (flattened across images):
++
++    - ``patches``: ``(sum(n_vit_h * n_vit_w), 3, p, p)`` bf16 ViT patches.
++    - ``vit_grid``: ``(num_images, 2)`` int64 ``[n_vit_h, n_vit_w]``.
++    - ``llm_grid``: ``(num_images, 2)`` int64 ``[n_llm_h, n_llm_w]``.
++    - ``perm``: concatenated per-image ``(n_llm_h * n_llm_w,)`` int64 index
++      selecting aligner outputs into the final N-layout order.
++    - ``types``: concatenated per-image pad-free sentinel block types;
++      ``block ids = IMAGE_SENTINEL_BASE_ID + types``.
++    """
++
++    def __init__(self, config: DeepseekV4Config) -> None:
++        super().__init__()
++        self.config = config
++        self.image_processor = DeepseekV4VLImageProcessor(config)
++
++    def __call__(
++        self,
++        text: str | None = None,
++        images: Sequence[Image.Image] | None = None,
++        return_tensors: str | None = None,
++        **kwargs: Any,
++    ) -> BatchFeature:
++        patches_list = []
++        vit_grid = []
++        llm_grid = []
++        perm_list = []
++        types_list = []
++        for image in images or []:
++            patches, n_vit_h, n_vit_w, n_llm_h, n_llm_w = self.image_processor(image)
++            types, perm = build_image_block_pad_free(n_llm_h, n_llm_w)
++            patches_list.append(patches)
++            vit_grid.append((n_vit_h, n_vit_w))
++            llm_grid.append((n_llm_h, n_llm_w))
++            perm_list.append(perm)
++            types_list.append(types)
++
++        if not patches_list:
++            return BatchFeature({})
++
++        return BatchFeature(
++            {
++                "patches": torch.cat(patches_list),
++                "vit_grid": torch.tensor(vit_grid, dtype=torch.int64),
++                "llm_grid": torch.tensor(llm_grid, dtype=torch.int64),
++                "perm": torch.cat(perm_list),
++                "types": torch.cat(types_list),
++            }
++        )
++
++
++class DeepseekV4VLProcessingInfo(BaseProcessingInfo):
++    def get_hf_config(self) -> DeepseekV4Config:
++        return self.ctx.get_hf_config(DeepseekV4Config)
++
++    def get_hf_processor(self, **kwargs: object) -> DeepseekV4VLProcessor:
++        if kwargs:
++            raise ValueError(f"Unexpected processor kwargs: {sorted(kwargs)}")
++        return DeepseekV4VLProcessor(self.get_hf_config())
++
++    def get_supported_mm_limits(self) -> Mapping[str, int | None]:
++        return {"image": None}
++
++    def get_mm_max_tokens_per_item(
++        self,
++        seq_len: int,
++        mm_counts: Mapping[str, int],
++    ) -> Mapping[str, int]:
++        # ``safe_resize`` reserves COMPRESS_PAD_TO - 1 tokens of
++        # vision_max_n_token for the compressor-alignment pad, so the full
++        # sentinel block is bounded by vision_max_n_token; the margin is kept
++        # in case that reservation changes.
++        return {
++            "image": self.get_hf_config().vision_max_n_token + COMPRESS_PAD_TO - 1,
++        }
++
++    def get_image_placeholder_token_id(self) -> int:
++        token_id = self.get_tokenizer().convert_tokens_to_ids(IMAGE_PLACEHOLDER)
++        if token_id is None:
++            raise ValueError(f"Token not found in tokenizer: {IMAGE_PLACEHOLDER}")
++        return token_id
++
++    def get_image_size_with_most_features(self) -> ImageSize:
++        hf_config = self.get_hf_config()
++        patch_size = hf_config.vision_patch_size
++        downsample_ratio = hf_config.vision_downsample_ratio
++        # A square maximizes the ViT patch count (area) within the token
++        # budget; solve the budget-derived size directly to keep the dummy
++        # image small.
++        budget = hf_config.vision_max_n_token - (COMPRESS_PAD_TO - 1)
++        side = budget * patch_size * downsample_ratio
++        _, _, best_h, best_w, _ = solve_resize_ratio(
++            side, side, patch_size, downsample_ratio, budget
++        )
++        return ImageSize(width=best_w, height=best_h)
++
++
++class DeepseekV4VLDummyInputsBuilder(
++    BaseDummyInputsBuilder[DeepseekV4VLProcessingInfo]
++):
++    def get_dummy_text(self, mm_counts: Mapping[str, int]) -> str:
++        return IMAGE_PLACEHOLDER * mm_counts.get("image", 0)
++
++    def get_dummy_mm_data(
++        self,
++        seq_len: int,
++        mm_counts: Mapping[str, int],
++        mm_options: Mapping[str, BaseDummyOptions],
++    ) -> MultiModalDataDict:
++        size = self.info.get_image_size_with_most_features()
++        return {
++            "image": self._get_dummy_images(
++                width=size.width,
++                height=size.height,
++                num_images=mm_counts.get("image", 0),
++                overrides=cast(ImageDummyOptions | None, mm_options.get("image")),
++            ),
++        }
++
++
++class DeepseekV4VLMultiModalProcessor(
++    BaseMultiModalProcessor[DeepseekV4VLProcessingInfo]
++):
++    def _get_mm_fields_config(
++        self,
++        hf_inputs: BatchFeature,
++        hf_processor_mm_kwargs: Mapping[str, object],
++    ) -> Mapping[str, MultiModalFieldConfig]:
++        vit_grid = hf_inputs.get("vit_grid")
++        llm_grid = hf_inputs.get("llm_grid")
++
++        if vit_grid is None or llm_grid is None:
++            empty = torch.empty(0, dtype=torch.long)
++            patch_sizes = perm_sizes = types_sizes = empty
++        else:
++            patch_sizes = vit_grid.prod(-1)
++            perm_sizes = llm_grid.prod(-1)
++            n_llm_h, n_llm_w = llm_grid[:, 0], llm_grid[:, 1]
++            # Pad-free block length; same formula as ``grid_tokens`` given
++            # the LLM grid.
++            types_sizes = (
++                n_llm_h * (n_llm_w + 1)
++                + 2
++                + (n_llm_h % 2) * (n_llm_w + 1)
++                + (n_llm_h + 1) // 2 * (n_llm_w + 1) % 2 * 2
++            )
++
++        return {
++            "patches": MultiModalFieldConfig.flat_from_sizes("image", patch_sizes),
++            "vit_grid": MultiModalFieldConfig.batched("image", keep_on_cpu=True),
++            "llm_grid": MultiModalFieldConfig.batched("image", keep_on_cpu=True),
++            "perm": MultiModalFieldConfig.flat_from_sizes("image", perm_sizes),
++            "types": MultiModalFieldConfig.flat_from_sizes(
++                "image", types_sizes, keep_on_cpu=True
++            ),
++        }
++
++    def _get_prompt_updates(
++        self,
++        mm_items: MultiModalDataItems,
++        hf_processor_mm_kwargs: Mapping[str, object],
++        out_mm_kwargs: MultiModalKwargsItems,
++    ) -> Sequence[PromptUpdate]:
++        image_token_id = self.info.get_image_placeholder_token_id()
++        validate_image_sentinel_ids(self.info.get_tokenizer())
++        image_embed_id = IMAGE_SENTINEL_BASE_ID + IMAGE
++
++        def get_image_replacement(item_idx: int) -> PromptUpdateDetails:
++            types: torch.Tensor = out_mm_kwargs["image"][item_idx]["types"].data
++            full = (IMAGE_SENTINEL_BASE_ID + types).tolist()
++            return PromptUpdateDetails.select_token_id(full, image_embed_id)
++
++        return [
++            PromptReplacement(
++                modality="image",
++                target=[image_token_id],
++                replacement=get_image_replacement,
++            ),
++        ]
++
++    def _apply_token_matches_with_placeholders(
++        self,
++        token_ids: list[int],
++        mm_prompt_updates: MultiModalPromptUpdates,
++    ) -> tuple[
++        list[int],
++        MultiModalPromptUpdatesApplyResult,
++        Mapping[str, list[PlaceholderFeaturesInfo]],
++    ]:
++        # Same as the base implementation, except that each image block gets
++        # its compressor-alignment pad (``3 - start_pos % 4`` IMAGE_PAD
++        # sentinels) prepended while splicing: the pad depends on the block's
++        # final position in the prompt, which is unknown when the (cacheable)
++        # prompt updates are built.
++        matched_updates, result = _plan_prompt_updates(token_ids, mm_prompt_updates)
++        placeholders: dict[str, list[PlaceholderFeaturesInfo]] = {
++            modality: [] for modality in mm_prompt_updates
++        }
++
++        pad_id = IMAGE_SENTINEL_BASE_ID + IMAGE_PAD
++
++        new_token_ids = list[int]()
++        prev_end_idx = 0
++        for matched_update in matched_updates:
++            update = matched_update.update
++            match = matched_update.match
++
++            if update.mode == UpdateMode.INSERT:
++                end_idx_to_insert = match.end_idx
++            elif update.mode == UpdateMode.REPLACE:
++                end_idx_to_insert = match.start_idx
++            else:
++                assert_never(update.mode)
++
++            new_token_ids.extend(token_ids[prev_end_idx:end_idx_to_insert])
++            start_idx = len(new_token_ids)
++
++            tokens = list(update.content.full)
++            if tokens and update.modality == "image":
++                compress_pad = COMPRESS_PAD_TO - 1 - start_idx % COMPRESS_PAD_TO
++                tokens = [pad_id] * compress_pad + tokens
++
++            if tokens:
++                content_is_embed = update.content.is_embed
++                is_embed = (
++                    content_is_embed(tokens) if content_is_embed is not None else None
++                )
++                placeholders[update.modality].append(
++                    PlaceholderFeaturesInfo(
++                        modality=update.modality,
++                        item_idx=update.item_idx,
++                        start_idx=start_idx,
++                        tokens=tokens,
++                        is_embed=is_embed,
++                    )
++                )
++                new_token_ids.extend(tokens)
++
++            prev_end_idx = match.end_idx
++
++        new_token_ids.extend(token_ids[prev_end_idx:])
++        return new_token_ids, result, placeholders
+diff --git a/patches/path3-vision-sm80-fork/new-files/deepseek_v4/common/vision.py b/patches/path3-vision-sm80-fork/new-files/deepseek_v4/common/vision.py
+new file mode 100644
+index 0000000..a54c35e
+--- /dev/null
++++ b/patches/path3-vision-sm80-fork/new-files/deepseek_v4/common/vision.py
+@@ -0,0 +1,232 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""DeepSeek-V4 vision tower (ViT + aligner) with TP-sharded linears.
++
++Ported from the official reference implementation
++(deepseek-ai/DeepSeek-V4-Flash-Vision-Exp). Weight names match the HF
++checkpoint so no renaming is needed at load time. Attention and MLP weights
++are tensor-parallel sharded (replicated when the vision head count is not
++divisible by TP size, or under ``--mm-encoder-tp-mode data``); the patch
++embed and norms are replicated, so the residual stream is full-width on
++every rank.
++"""
++
++from functools import lru_cache
++
++import torch
++import torch.nn.functional as F
++from torch import nn
++
++from vllm.distributed import get_tensor_model_parallel_world_size
++from vllm.model_executor.layers.activation import SiluAndMul
++from vllm.model_executor.layers.attention.mm_encoder_attention import (
++    MMEncoderAttention,
++)
++from vllm.model_executor.layers.linear import (
++    ColumnParallelLinear,
++    MergedColumnParallelLinear,
++    QKVParallelLinear,
++    ReplicatedLinear,
++    RowParallelLinear,
++)
++from vllm.model_executor.models.vision import is_vit_use_data_parallel
++
++
++@lru_cache(8)
++def get_vision_cos_sin(
++    n_h: int, n_w: int, dim: int, theta: float
++) -> tuple[torch.Tensor, torch.Tensor]:
++    inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2, dtype=torch.float32) / dim))
++    hpos = torch.arange(n_h).unsqueeze(1).expand(n_h, n_w)
++    wpos = torch.arange(n_w).unsqueeze(0).expand(n_h, n_w)
++    freqs = torch.stack([hpos, wpos], dim=-1).reshape(-1, 2, 1).float()
++    freqs = (freqs * inv_freq).flatten(1)
++    return freqs.cos().unsqueeze(1), freqs.sin().unsqueeze(1)
++
++
++def apply_rotary(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
++    dtype = x.dtype
++    x1, x2 = x.float().chunk(2, dim=-1)
++    return torch.cat([x1 * cos - x2 * sin, x2 * cos + x1 * sin], dim=-1).to(dtype)
++
++
++class DeepseekV4RMSNorm(nn.Module):
++    def __init__(self, dim: int, eps: float = 1e-6):
++        super().__init__()
++        self.eps = eps
++        self.weight = nn.Parameter(torch.ones(dim, dtype=torch.float32))
++
++    def forward(self, x: torch.Tensor) -> torch.Tensor:
++        dtype = x.dtype
++        x = x.float()
++        x = x * torch.rsqrt(x.square().mean(-1, keepdim=True) + self.eps)
++        return (self.weight * x).to(dtype)
++
++
++class DeepseekV4PatchEmbed(nn.Module):
++    def __init__(self, config):
++        super().__init__()
++        # Replicated: the residual stream is full-width on every rank.
++        self.proj = ReplicatedLinear(
++            3 * config.vision_patch_size**2,
++            config.vision_dim,
++            bias=True,
++            quant_config=None,
++        )
++
++    def forward(self, x: torch.Tensor) -> torch.Tensor:
++        out, _ = self.proj(x.flatten(1))
++        return out
++
++
++class DeepseekV4VisionAttention(nn.Module):
++    def __init__(self, config, prefix: str = ""):
++        super().__init__()
++        # Convention from minimax_m3/siglip: compute the TP/DP choice locally
++        # instead of threading a flag through every constructor.
++        use_data_parallel = is_vit_use_data_parallel(config.vision_n_heads)
++        self.tp_size = (
++            1 if use_data_parallel else get_tensor_model_parallel_world_size()
++        )
++        self.n_heads = config.vision_n_heads // self.tp_size
++        self.head_dim = config.vision_dim // config.vision_n_heads
++        self.hidden_size = config.vision_dim
++        self.wqkv = QKVParallelLinear(
++            config.vision_dim,
++            self.head_dim,
++            config.vision_n_heads,
++            bias=True,
++            quant_config=None,
++            prefix=f"{prefix}.wqkv",
++            disable_tp=use_data_parallel,
++        )
++        self.wo = RowParallelLinear(
++            config.vision_dim,
++            config.vision_dim,
++            bias=True,
++            quant_config=None,
++            prefix=f"{prefix}.wo",
++            disable_tp=use_data_parallel,
++        )
++        self.attn = MMEncoderAttention(
++            num_heads=self.n_heads,
++            head_size=self.head_dim,
++            prefix=f"{prefix}.attn",
++        )
++
++    def forward(
++        self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
++    ) -> torch.Tensor:
++        n = x.size(0)
++        qkv, _ = self.wqkv(x)
++        q, k, v = (t.view(n, self.n_heads, self.head_dim) for t in qkv.chunk(3, -1))
++        q = apply_rotary(q, cos, sin).unsqueeze(0)  # (b=1, n, h, d)
++        k = apply_rotary(k, cos, sin).unsqueeze(0)
++        # One image per call: a dense batch, no varlen packing metadata.
++        o = self.attn(q, k, v.unsqueeze(0))
++        out, _ = self.wo(o.reshape(n, -1))
++        return out
++
++
++class DeepseekV4VisionMLP(nn.Module):
++    def __init__(self, config, prefix: str = ""):
++        super().__init__()
++        use_data_parallel = is_vit_use_data_parallel(config.vision_n_heads)
++        self.w1 = MergedColumnParallelLinear(
++            config.vision_dim,
++            [config.vision_inter_dim] * 2,
++            bias=False,
++            quant_config=None,
++            prefix=f"{prefix}.w1",
++            disable_tp=use_data_parallel,
++        )
++        self.w2 = RowParallelLinear(
++            config.vision_inter_dim,
++            config.vision_dim,
++            bias=False,
++            quant_config=None,
++            prefix=f"{prefix}.w2",
++            disable_tp=use_data_parallel,
++        )
++        self.act_fn = SiluAndMul()
++
++    def forward(self, x: torch.Tensor) -> torch.Tensor:
++        gate_up, _ = self.w1(x)
++        out, _ = self.w2(self.act_fn(gate_up))
++        return out
++
++
++class DeepseekV4VisionBlock(nn.Module):
++    def __init__(self, config, prefix: str = ""):
++        super().__init__()
++        self.norm1 = DeepseekV4RMSNorm(config.vision_dim)
++        self.attn = DeepseekV4VisionAttention(config, prefix=f"{prefix}.attn")
++        self.norm2 = DeepseekV4RMSNorm(config.vision_dim)
++        self.mlp = DeepseekV4VisionMLP(config, prefix=f"{prefix}.mlp")
++
++    def forward(
++        self, x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
++    ) -> torch.Tensor:
++        x = x + self.attn(self.norm1(x), cos, sin)
++        return x + self.mlp(self.norm2(x))
++
++
++class DeepseekV4ViT(nn.Module):
++    """DeepSeek-V4 ViT: full bidirectional attention per image, 2D RoPE."""
++
++    def __init__(self, config):
++        super().__init__()
++        self.rope_dim = config.vision_dim // config.vision_n_heads // 2
++        self.rope_theta = config.vision_rope_theta
++        self.patch_embed = DeepseekV4PatchEmbed(config)
++        self.blocks = nn.ModuleList(
++            [
++                DeepseekV4VisionBlock(config, prefix=f"blocks.{i}")
++                for i in range(config.vision_n_layers)
++            ]
++        )
++        self.norm = DeepseekV4RMSNorm(config.vision_dim)
++
++    def forward(
++        self, patches: torch.Tensor, n_vit_h: int, n_vit_w: int
++    ) -> torch.Tensor:
++        x = self.patch_embed(patches)
++        cos, sin = get_vision_cos_sin(n_vit_h, n_vit_w, self.rope_dim, self.rope_theta)
++        cos = cos.to(device=x.device)
++        sin = sin.to(device=x.device)
++        for block in self.blocks:
++            x = block(x, cos, sin)
++        return self.norm(x)
++
++
++class DeepseekV4Aligner(nn.Module):
++    """Spatial merge (downsample_ratio x downsample_ratio) + MLP projector."""
++
++    def __init__(self, config):
++        super().__init__()
++        use_data_parallel = is_vit_use_data_parallel(config.vision_n_heads)
++        self.downsample_ratio = config.vision_downsample_ratio
++        in_dim = config.vision_dim * self.downsample_ratio**2
++        self.w1 = ColumnParallelLinear(
++            in_dim,
++            config.hidden_size,
++            bias=True,
++            quant_config=None,
++            disable_tp=use_data_parallel,
++        )
++        self.w2 = RowParallelLinear(
++            config.hidden_size,
++            config.hidden_size,
++            bias=True,
++            quant_config=None,
++            disable_tp=use_data_parallel,
++        )
++
++    def forward(self, x: torch.Tensor, n_vit_h: int, n_vit_w: int) -> torch.Tensor:
++        r = self.downsample_ratio
++        x = x.view(n_vit_h, n_vit_w, -1).permute(2, 0, 1)
++        x = F.pad(x, (0, -n_vit_w % r, 0, -n_vit_h % r))
++        x = F.unfold(x.unsqueeze(0), r, stride=r).squeeze(0).transpose(0, 1)
++        hidden, _ = self.w1(x)
++        out, _ = self.w2(F.gelu(hidden))
++        return out
+diff --git a/patches/path3-vision-sm80-fork/new-files/deepseek_v4/nvidia/vl_model.py b/patches/path3-vision-sm80-fork/new-files/deepseek_v4/nvidia/vl_model.py
+new file mode 100644
+index 0000000..bd40b7b
+--- /dev/null
++++ b/patches/path3-vision-sm80-fork/new-files/deepseek_v4/nvidia/vl_model.py
+@@ -0,0 +1,333 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""DeepSeek-V4 vision variant (e.g. DeepSeek-V4-Flash-Vision-Exp).
++
++Thin multimodal wrapper around the text-only ``DeepseekV4ForCausalLM``:
++
++- ``vision`` ViT + ``aligner`` produce per-image embeddings for the IMAGE
++  sentinel positions; four learned vectors (``image_start`` / ``image_pad`` /
++  ``image_newline`` / ``image_end``) fill the remaining sentinel positions.
++- Image placeholders (``<｜deepseek_image｜>``) are expanded by the processor
++  in ``common/mm_preprocess.py`` into sentinel blocks borrowing reserved
++  in-vocab tokens ``<|place_holder_mm_span_0431|>``..``_0435|>``
++  (see ``common/vision.py`` for the tower itself).
++- Merged embeddings enter the text model via ``inputs_embeds``, i.e. before
++  its hyper-connection stream expansion. Raw ``input_ids`` still flow into
++  the model so the MoE router can apply ``bias_vl`` to image tokens
++  (``requires_raw_input_tokens``).
++"""
++
++from collections.abc import Iterable
++
++import torch
++from torch import nn
++
++from vllm.model_executor.models.interfaces import (
++    MultiModalEmbeddings,
++    SupportsEagle3,
++    SupportsMultiModal,
++    SupportsPP,
++)
++from vllm.model_executor.models.utils import (
++    AutoWeightsLoader,
++    WeightsMapper,
++    init_vllm_registered_model,
++    maybe_prefix,
++)
++from vllm.multimodal import MULTIMODAL_REGISTRY
++
++from ..common.mm_preprocess import (
++    IMAGE_PLACEHOLDER,
++    IMAGE_SENTINEL_BASE_ID,
++    DeepseekV4VLDummyInputsBuilder,
++    DeepseekV4VLMultiModalProcessor,
++    DeepseekV4VLProcessingInfo,
++    image_sentinel_mask,
++)
++from ..common.vision import DeepseekV4Aligner, DeepseekV4ViT
++from .model import _make_deepseek_v4_weights_mapper
++
++
++def _make_deepseek_v4_vl_weights_mapper(
++    expert_dtype: str, image_enabled: bool
++) -> WeightsMapper:
++    """Text-checkpoint mapping rules re-rooted under ``language_model.``."""
++    base = _make_deepseek_v4_weights_mapper(expert_dtype)
++    orig_to_new_prefix: dict[str, str | None] = {
++        "layers.": "language_model.model.layers.",
++        "embed.": "language_model.model.embed.",
++        "norm.": "language_model.model.norm.",
++        "hc_head": "language_model.model.hc_head",
++        "mtp.": "language_model.model.mtp.",
++    }
++    if not image_enabled:
++        orig_to_new_prefix.update({"vision.": None, "aligner.": None, "image_": None})
++    return WeightsMapper(
++        orig_to_new_prefix=orig_to_new_prefix,
++        orig_to_new_regex=base.orig_to_new_regex,
++        orig_to_new_suffix={
++            "head.weight": "language_model.lm_head.weight",
++            "embed.weight": "embed_tokens.weight",
++            ".ffn.gate.bias": ".ffn.gate.e_score_correction_bias",
++        },
++        orig_to_new_substr={
++            ".shared_experts.w2": ".shared_experts.down_proj",
++            # The MTP/DSpark draft heads are not supported for the vision
++            # variant; drop their weights.
++            "mtp.": None,
++        },
++    )
++
++
++@MULTIMODAL_REGISTRY.register_processor(
++    DeepseekV4VLMultiModalProcessor,
++    info=DeepseekV4VLProcessingInfo,
++    dummy_inputs=DeepseekV4VLDummyInputsBuilder,
++)
++class DeepseekV4ForConditionalGeneration(
++    nn.Module, SupportsMultiModal, SupportsPP, SupportsEagle3
++):
++    """Multimodal entry point for DeepSeek-V4 checkpoints with a vision tower.
++
++    ``SupportsEagle3`` (aux hidden-state plumbing for MTP/DSpark drafters)
++    delegates through ``language_model`` via the protocol defaults.
++    """
++
++    # The MoE router needs raw token ids to detect image sentinel tokens
++    # (borrowed reserved ids, see common/mm_preprocess.py) and apply bias_vl.
++    requires_raw_input_tokens = True
++
++    @classmethod
++    def get_placeholder_str(cls, modality: str, i: int) -> str | None:
++        if modality == "image":
++            return IMAGE_PLACEHOLDER
++        raise ValueError(f"Unsupported modality: {modality!r}")
++
++    def __init__(self, *, vllm_config, prefix: str = "") -> None:
++        super().__init__()
++        model_config = vllm_config.model_config
++        config = model_config.hf_config
++        self.config = config
++        self.multimodal_config = model_config.multimodal_config
++        assert self.multimodal_config is not None
++
++        image_enabled = (
++            config.vision_n_layers > 0
++            and self.multimodal_config.get_limit_per_prompt("image") > 0
++        )
++        with self._mark_tower_model(vllm_config, {"image"}):
++            self.vision: DeepseekV4ViT | None = None
++            self.aligner: DeepseekV4Aligner | None = None
++            self.image_start: nn.Parameter | None = None
++            self.image_end: nn.Parameter | None = None
++            self.image_newline: nn.Parameter | None = None
++            self.image_pad: nn.Parameter | None = None
++            if image_enabled:
++                self.vision = DeepseekV4ViT(config)
++                self.aligner = DeepseekV4Aligner(config)
++                for name in (
++                    "image_start",
++                    "image_end",
++                    "image_newline",
++                    "image_pad",
++                ):
++                    setattr(
++                        self,
++                        name,
++                        nn.Parameter(
++                            torch.empty(config.hidden_size, dtype=torch.float32)
++                        ),
++                    )
++                self.vision.to(dtype=model_config.dtype)
++                self.aligner.to(dtype=model_config.dtype)
++
++        with self._mark_language_model(vllm_config):
++            # The arch convertor routes any config with a vision tower to
++            # this wrapper class; mark the copy handed to the text backbone
++            # so it resolves to DeepseekV4ForCausalLM instead of recursing
++            # (with_hf_config deepcopies the config, the marker survives).
++            config._dsv4_vl_inner = True  # type: ignore[attr-defined]
++            try:
++                self.language_model = init_vllm_registered_model(
++                    vllm_config=vllm_config,
++                    hf_config=config,
++                    prefix=maybe_prefix(prefix, "language_model"),
++                    architectures=["DeepseekV4ForCausalLM"],
++                )
++            finally:
++                del config._dsv4_vl_inner  # type: ignore[attr-defined]
++        # The outer mapper (see load_weights) fully resolves HF names into
++        # this wrapper's namespace before AutoWeightsLoader strips the
++        # "language_model." prefix and delegates to the child's load_weights,
++        # so the child's own mapper must be a no-op. Its suffix rules are not
++        # idempotent (e.g. "lm_head.weight".endswith("head.weight") would
++        # re-fire "head.weight" -> "lm_head.weight").
++        self.language_model.hf_to_vllm_mapper = WeightsMapper()
++        self.make_empty_intermediate_tensors = (  # type: ignore[method-assign]
++            self.language_model.make_empty_intermediate_tensors
++        )
++
++        expert_dtype = getattr(config, "expert_dtype", "fp4")
++        self.hf_to_vllm_mapper = _make_deepseek_v4_vl_weights_mapper(
++            expert_dtype, image_enabled
++        )
++
++    def _parse_and_validate_image_input(self, **kwargs: object) -> dict | None:
++        patches = kwargs.pop("patches", None)
++        if patches is None:
++            return None
++        vit_grid = kwargs.pop("vit_grid", None)
++        llm_grid = kwargs.pop("llm_grid", None)
++        perm = kwargs.pop("perm", None)
++        assert vit_grid is not None and llm_grid is not None and perm is not None
++        return {
++            "patches": patches,
++            "vit_grid": vit_grid,
++            "llm_grid": llm_grid,
++            "perm": perm,
++        }
++
++    def _encode_image(
++        self,
++        patches: torch.Tensor,
++        n_vit_h: int,
++        n_vit_w: int,
++        perm: torch.Tensor,
++    ) -> torch.Tensor:
++        assert self.vision is not None and self.aligner is not None
++        image_embeds = self.aligner(
++            self.vision(patches, n_vit_h, n_vit_w), n_vit_h, n_vit_w
++        )
++        # Reorder into the N-layout block order used in the prompt.
++        return image_embeds[perm.to(image_embeds.device)]
++
++    def _process_image_input(
++        self,
++        patches: torch.Tensor,
++        vit_grid: torch.Tensor,
++        llm_grid: torch.Tensor,
++        perm: torch.Tensor,
++    ) -> tuple[torch.Tensor, ...]:
++        assert self.vision is not None and self.aligner is not None
++        patches = patches.to(self.aligner.w1.weight.dtype)
++
++        embeds: list[torch.Tensor] = []
++        vit_offset = 0
++        llm_offset = 0
++        for (n_vit_h, n_vit_w), (n_llm_h, n_llm_w) in zip(
++            vit_grid.tolist(), llm_grid.tolist(), strict=True
++        ):
++            n_vit = n_vit_h * n_vit_w
++            n_llm = n_llm_h * n_llm_w
++            embeds.append(
++                self._encode_image(
++                    patches[vit_offset : vit_offset + n_vit],
++                    n_vit_h,
++                    n_vit_w,
++                    perm[llm_offset : llm_offset + n_llm],
++                )
++            )
++            vit_offset += n_vit
++            llm_offset += n_llm
++        return tuple(embeds)
++
++    def embed_multimodal(self, **kwargs: object) -> MultiModalEmbeddings:
++        image_input = self._parse_and_validate_image_input(**kwargs)
++        if image_input is None or self.vision is None:
++            return []
++        return self._process_image_input(
++            image_input["patches"],
++            image_input["vit_grid"],
++            image_input["llm_grid"],
++            image_input["perm"],
++        )
++
++    def embed_input_ids(
++        self,
++        input_ids: torch.Tensor,
++        multimodal_embeddings: MultiModalEmbeddings | None = None,
++        *,
++        is_multimodal: torch.Tensor | None = None,
++    ) -> torch.Tensor:
++        from vllm.model_executor.models.utils import _merge_multimodal_embeddings
++
++        # All ids are in-vocab here: image-block sentinels are borrowed
++        # reserved tokens (their embedding rows are always overwritten below).
++        inputs_embeds = self.language_model.embed_input_ids(input_ids)
++
++        if self.image_start is not None:
++            # Branch-free sentinel overwrite: safe inside compiled/captured
++            # regions (no data-dependent control flow).
++            sentinel_mask = image_sentinel_mask(input_ids)
++            if is_multimodal is not None:
++                # IMAGE positions get vision embeddings via the merge below.
++                sentinel_mask = sentinel_mask & ~is_multimodal.to(input_ids.device)
++            table = torch.stack(
++                [
++                    self.image_start,
++                    self.image_pad,
++                    self.image_pad,
++                    self.image_newline,
++                    self.image_end,
++                ]
++            ).to(inputs_embeds.dtype)
++            idx = (input_ids - IMAGE_SENTINEL_BASE_ID).clamp(0, 4)
++            inputs_embeds = torch.where(
++                sentinel_mask.unsqueeze(-1), table[idx], inputs_embeds
++            )
++
++        if multimodal_embeddings is None or len(multimodal_embeddings) == 0:
++            return inputs_embeds
++
++        assert is_multimodal is not None
++        return _merge_multimodal_embeddings(
++            inputs_embeds=inputs_embeds,
++            multimodal_embeddings=multimodal_embeddings,
++            is_multimodal=is_multimodal,
++        )
++
++    def forward(
++        self,
++        input_ids: torch.Tensor,
++        positions: torch.Tensor,
++        intermediate_tensors=None,
++        inputs_embeds: torch.Tensor | None = None,
++        **kwargs,
++    ) -> torch.Tensor:
++        return self.language_model(
++            input_ids, positions, intermediate_tensors, inputs_embeds
++        )
++
++    def compute_logits(self, hidden_states: torch.Tensor) -> torch.Tensor | None:
++        return self.language_model.compute_logits(hidden_states)
++
++    def compute_logits_local(self, hidden_states: torch.Tensor) -> torch.Tensor:
++        return self.language_model.compute_logits_local(hidden_states)
++
++    def get_expert_mapping(self) -> list[tuple[str, str, int, str]]:
++        return self.language_model.get_expert_mapping()
++
++    def get_mtp_target_hidden_states(self) -> torch.Tensor | None:
++        """Pre-hc_head residual stream buffer for the MTP/DSpark draft model."""
++        return self.language_model.get_mtp_target_hidden_states()
++
++    def load_weights(self, weights: Iterable[tuple[str, torch.Tensor]]) -> set[str]:
++        # Map HF names into this wrapper's namespace up front and sort, so
++        # the "language_model." group reaches the child loader as one
++        # contiguous block (AutoWeightsLoader delegates per contiguous group,
++        # and the child's load_weights finalizes fused expert weights, which
++        # must not run on a partially loaded model).
++        mapped = sorted(self.hf_to_vllm_mapper.apply(weights), key=lambda x: x[0])
++        loader = AutoWeightsLoader(self)
++        loaded_params = loader.load_weights(mapped)
++        # The child's load_weights already ran its post-load finalization.
++        self._weights_finalized = True
++        return loaded_params
++
++    def process_weights_after_loading(self) -> None:
++        # Model-level post-load hook (called by the loader after any load
++        # format). Under DummyModelLoader the child's load_weights — and
++        # hence its finalize step — is bypassed, so run it here instead.
++        if getattr(self, "_weights_finalized", False):
++            return
++        self.language_model.process_weights_after_loading()
+diff --git a/patches/path3-vision-sm80-fork/new-files/deepseek_v4/vl_stub.py b/patches/path3-vision-sm80-fork/new-files/deepseek_v4/vl_stub.py
+new file mode 100644
+index 0000000..0f15a82
+--- /dev/null
++++ b/patches/path3-vision-sm80-fork/new-files/deepseek_v4/vl_stub.py
+@@ -0,0 +1,14 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""Stub for platforms where the DeepSeek-V4 vision variant is unsupported."""
++
++from torch import nn
++
++
++class DeepseekV4ForConditionalGeneration(nn.Module):
++    def __init__(self, *, vllm_config, prefix: str = ""):
++        super().__init__()
++        raise NotImplementedError(
++            "DeepSeek-V4 vision (DeepseekV4ForConditionalGeneration) is only "
++            "supported on NVIDIA GPUs for now."
++        )
+diff --git a/patches/path3-vision-sm80-fork/step1-registry-wiring.diff b/patches/path3-vision-sm80-fork/step1-registry-wiring.diff
+new file mode 100644
+index 0000000..2272949
+--- /dev/null
++++ b/patches/path3-vision-sm80-fork/step1-registry-wiring.diff
+@@ -0,0 +1,50 @@
++diff --git a/vllm/model_executor/models/registry.py b/vllm/model_executor/models/registry.py
++index db3464a44..5510e1b58 100644
++--- a/vllm/model_executor/models/registry.py
+++++ b/vllm/model_executor/models/registry.py
++@@ -363,6 +363,10 @@ _MULTIMODAL_MODELS = {
++         "Cohere2VisionForConditionalGeneration",
++     ),
++     "Cosmos3ForConditionalGeneration": ("cosmos3", "Cosmos3ForConditionalGeneration"),
+++    "DeepseekV4ForConditionalGeneration": (
+++        "vllm.models.deepseek_v4",
+++        "DeepseekV4ForConditionalGeneration",
+++    ),
++     "Cosmos3EdgeForConditionalGeneration": (
++         "cosmos3_edge",
++         "Cosmos3EdgeForConditionalGeneration",
++diff --git a/vllm/models/deepseek_v4/__init__.py b/vllm/models/deepseek_v4/__init__.py
++index c7dd948f7..7346b509e 100644
++--- a/vllm/models/deepseek_v4/__init__.py
+++++ b/vllm/models/deepseek_v4/__init__.py
++@@ -20,20 +20,30 @@ if current_platform.is_rocm():
++     )
++     from .amd.model import DeepseekV4ForCausalLM
++     from .amd.mtp import DeepSeekV4MTP
+++    from .vl_stub import (  # type: ignore[assignment]
+++        DeepseekV4ForConditionalGeneration,
+++    )
++ elif current_platform.is_xpu():
++     from .xpu.dspark import DSparkDeepseekV4ForCausalLM  # type: ignore[assignment]
++     from .xpu.model import DeepseekV4ForCausalLM  # type: ignore[assignment]
++     from .xpu.mtp import DeepSeekV4MTP  # type: ignore[assignment]
+++    from .vl_stub import (  # type: ignore[assignment]
+++        DeepseekV4ForConditionalGeneration,
+++    )
++ else:
++     from .nvidia.dspark import (  # type: ignore[assignment]
++         DSparkDeepseekV4ForCausalLM,
++     )
++     from .nvidia.model import DeepseekV4ForCausalLM  # type: ignore[assignment]
++     from .nvidia.mtp import DeepSeekV4MTP  # type: ignore[assignment]
+++    from .nvidia.vl_model import (  # type: ignore[assignment]
+++        DeepseekV4ForConditionalGeneration,
+++    )
++ 
++ __all__ = [
++     "DSparkDeepseekV4ForCausalLM",
++     "DeepSeekV4MTP",
++     "DeepseekV4FP8Config",
++     "DeepseekV4ForCausalLM",
+++    "DeepseekV4ForConditionalGeneration",
++ ]
+-- 
+2.34.1
+

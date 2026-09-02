@@ -1,0 +1,23 @@
+Import gate, run in-container against ghcr.io/pixelml/club-170hx:vllm-deepseek-v4-vision-sm80-20260902
+(local build tag: dsv4-vision-sm80:path3-final), 2026-09-02.
+
+Command:
+  docker run --rm --gpus all --entrypoint python <image> -c '<imports below>'
+
+Checks (each printed "ok" with no exception):
+  import vllm
+  from vllm.models.deepseek_v4.nvidia import model as dsv4_model
+  from vllm.models.deepseek_v4.common import mm_preprocess
+  from vllm.v1.worker.gpu import cudagraph_utils
+  from vllm.multimodal.processing import processor   # has _plan_prompt_updates: True
+  from vllm.model_executor.layers import sparse_attn_indexer
+  from vllm.v1.worker.gpu import model_runner
+  from vllm.v1.worker.gpu import pp_utils
+  from vllm.config import speculative
+  from vllm.models.deepseek_v4.nvidia import dspark
+  from vllm.model_executor.models.registry import ModelRegistry
+  'DeepseekV4ForConditionalGeneration' in ModelRegistry.get_supported_archs()  # True
+
+Result: ALL IMPORTS OK. No GPU memory was allocated for this check
+(module import only); the running server on the same host held the GPUs
+the whole time and was not restarted.
