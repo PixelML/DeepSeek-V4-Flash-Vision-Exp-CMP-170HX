@@ -1,0 +1,144 @@
+{
+  "schema": "dsv4-vision-exp-live-benchmark/2",
+  "started_utc": "2026-09-01T19:04:24.498783Z",
+  "protocol": {
+    "greedy": true,
+    "max_tokens_decode": 400,
+    "concurrencies": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "reps": 3,
+    "prefill_ladder": [
+      512,
+      256
+    ],
+    "prefill_oom_findings": "single-request prefills at 2941, 2048, and 1024 tokens all OOMed the 4 TP4 ranks (sparse_attn SDPA extension allocates 7.8-11.5 GiB; only ~2-7 GiB free per card) - measured capacity boundary; ladder capped at 512",
+    "ttft_note": "no streaming; 1-token request latency as proxy"
+  },
+  "storage_stage_coexistence": true,
+  "readiness": {
+    "ready": true,
+    "waited_s": 10
+  },
+  "health_pre": {
+    "gpus": [
+      [
+        "0",
+        "44778",
+        "78",
+        "41",
+        "53.13"
+      ],
+      [
+        "1",
+        "44778",
+        "40",
+        "41",
+        "72.59"
+      ],
+      [
+        "2",
+        "44778",
+        "72",
+        "41",
+        "58.05"
+      ],
+      [
+        "3",
+        "44778",
+        "83",
+        "40",
+        "65.33"
+      ]
+    ]
+  },
+  "prefill_512": [
+    {
+      "rep": 0,
+      "status": 200,
+      "wall_s": 9.795,
+      "prompt_tokens": 516,
+      "completion_tokens": 2,
+      "err": null
+    },
+    {
+      "rep": 1,
+      "status": 200,
+      "wall_s": 8.659,
+      "prompt_tokens": 510,
+      "completion_tokens": 2,
+      "err": null
+    }
+  ],
+  "prefill_256": [
+    {
+      "rep": 0,
+      "status": 200,
+      "wall_s": 7.362,
+      "prompt_tokens": 276,
+      "completion_tokens": 2,
+      "err": null
+    },
+    {
+      "rep": 1,
+      "status": 200,
+      "wall_s": 7.535,
+      "prompt_tokens": 272,
+      "completion_tokens": 2,
+      "err": null
+    }
+  ],
+  "ttft_proxy_1token": [
+    {
+      "rep": 0,
+      "status": 200,
+      "wall_s": 2.065
+    },
+    {
+      "rep": 1,
+      "status": 200,
+      "wall_s": 2.075
+    },
+    {
+      "rep": 2,
+      "status": 200,
+      "wall_s": 2.05
+    }
+  ],
+  "decode_C1": [
+    {
+      "rep": 0,
+      "ok": 1,
+      "total": 1,
+      "wall_s": 431.265,
+      "completion_tokens": 401,
+      "prompt_tokens": 23,
+      "agg_tok_s": 0.93,
+      "per_req_lat_median": 431.252
+    },
+    {
+      "rep": 1,
+      "ok": 1,
+      "total": 1,
+      "wall_s": 443.357,
+      "completion_tokens": 401,
+      "prompt_tokens": 17,
+      "agg_tok_s": 0.9,
+      "per_req_lat_median": 443.355
+    },
+    {
+      "rep": 2,
+      "ok": 1,
+      "total": 1,
+      "wall_s": 453.511,
+      "completion_tokens": 401,
+      "prompt_tokens": 21,
+      "agg_tok_s": 0.88,
+      "per_req_lat_median": 453.51
+    }
+  ]
+}

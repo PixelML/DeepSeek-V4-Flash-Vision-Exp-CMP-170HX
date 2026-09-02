@@ -1,0 +1,24 @@
+{
+  "captured_utc": "2026-08-31T20:24Z",
+  "endpoint": "https://cliproxy.agenticflow.ai/v1/chat/completions",
+  "model": "deepseek-v4-flash-vision-exp",
+  "status": "PASS",
+  "live_request": {
+    "prompt": "Do not think. Reply with exactly this token and nothing else: CMP_VISION_EXP_LIVE_OK",
+    "max_tokens": 64,
+    "temperature": 0
+  },
+  "response": {
+    "content": "CMP_VISION_EXP_LIVE_OK",
+    "finish_reason": "stop"
+  },
+  "usage": {
+    "prompt_tokens": 105,
+    "completion_tokens": 58,
+    "total_tokens": 163,
+    "reasoning_tokens": 48,
+    "cached_tokens": 0
+  },
+  "wiring": "model was already registered in the existing ClipProxy catalog; verified live end-to-end rather than re-registered",
+  "notes": "initial 20-token probe returned empty content with all tokens in reasoning_content; retry with 64 tokens produced the exact sentinel"
+}

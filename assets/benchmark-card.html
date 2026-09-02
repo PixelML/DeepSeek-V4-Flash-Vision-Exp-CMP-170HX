@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1200">
+<title>PixelML Benchmark Card — DeepSeek-V4-Flash-Vision-Exp on 4× CMP 170HX</title>
+<style>
+  :root {
+    --bg-top: #0b1020;
+    --bg-bottom: #101a33;
+    --ink: #f1f5f9;
+    --ink-dim: #94a3b8;
+    --ink-faint: #64748b;
+    --line: #1e293b;
+    --accent: #5eead4;
+    --accent-2: #818cf8;
+    --good: #34d399;
+    --warn: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1200px; height: 675px; overflow: hidden; }
+  body {
+    font-family: -apple-system, "Segoe UI", "DejaVu Sans", Arial, sans-serif;
+    background: linear-gradient(160deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    padding: 40px 56px 32px;
+  }
+  .rule-top { position: fixed; top: 0; left: 0; right: 0; height: 4px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+  header { display: flex; align-items: baseline; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand .chip { width: 12px; height: 12px; border-radius: 3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); }
+  .brand .name { font-size: 19px; font-weight: 700; letter-spacing: 4px; }
+  .brand .tag { font-size: 13px; color: var(--ink-faint); letter-spacing: 1px; }
+  .stamp { font-size: 13px; color: var(--ink-faint); letter-spacing: 1px; }
+  h1 { margin-top: 22px; font-size: 44px; font-weight: 800; letter-spacing: -0.5px; }
+  .sub { margin-top: 10px; font-size: 18px; color: var(--ink-dim); }
+  .pills { margin-top: 18px; display: flex; gap: 12px; }
+  .pill { font-size: 15px; font-weight: 700; letter-spacing: 0.5px;
+    padding: 8px 16px; border-radius: 999px; border: 1px solid; }
+  .pill.good { color: var(--good); border-color: rgba(52, 211, 153, 0.55);
+    background: rgba(52, 211, 153, 0.10); }
+  .pill.warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.45);
+    background: rgba(251, 191, 36, 0.07); font-weight: 600; }
+  .grid { margin-top: 26px; display: grid; gap: 16px;
+    grid-template-columns: repeat(3, 1fr); }
+  .metric { border: 1px solid var(--line); border-radius: 14px;
+    background: rgba(148, 163, 184, 0.05); padding: 18px 20px 16px; }
+  .metric .value { font-size: 36px; font-weight: 800; color: var(--accent); }
+  .metric .value small { font-size: 18px; font-weight: 700; color: var(--accent);
+    opacity: 0.85; margin-left: 4px; }
+  .metric .label { margin-top: 7px; font-size: 13.5px; line-height: 1.35;
+    color: var(--ink-dim); }
+  footer { margin-top: auto; border-top: 1px solid var(--line);
+    padding-top: 16px; display: flex; justify-content: space-between;
+    font-size: 13px; color: var(--ink-faint); }
+  footer .right { text-align: right; }
+</style>
+</head>
+<body>
+<div class="rule-top"></div>
+<header>
+  <div class="brand">
+    <div class="chip"></div>
+    <span class="name">PIXELML</span>
+    <span class="tag">BENCHMARK CARD</span>
+  </div>
+  <div class="stamp">MEASURED 2026-08-31 · VISION PASS 2026-09-01</div>
+</header>
+
+<h1>DeepSeek-V4-Flash-Vision-Exp</h1>
+<div class="sub">4× CMP 170HX · SM80 · 64 GiB per card · pipeline parallel 4 · fp8 KV cache · DSpark k=6</div>
+<div class="pills">
+  <span class="pill good">VERDICT: VISION PASS — 3/3 GATES</span>
+  <span class="pill good">IMAGE INPUT SERVED END TO END</span>
+</div>
+
+<div class="grid">
+  <div class="metric">
+    <div class="value">59.78<small>tok/s</small></div>
+    <div class="label">Warm aggregate decode · 51.06 tok/s cold · concurrency 1</div>
+  </div>
+  <div class="metric">
+    <div class="value">0.163<small>s</small></div>
+    <div class="label">Warm time-to-first-token · 0.214 s cold</div>
+  </div>
+  <div class="metric">
+    <div class="value">325.5<small>tok/s</small></div>
+    <div class="label">Uncached prefill on a 2,941-token prompt</div>
+  </div>
+  <div class="metric">
+    <div class="value">56.6<small>tok/s</small></div>
+    <div class="label">Sustained decode across an 800-token completion</div>
+  </div>
+  <div class="metric">
+    <div class="value">19.3<small>min</small></div>
+    <div class="label">Eager load of 48 shards from shared model storage · ~44 min cold start</div>
+  </div>
+  <div class="metric">
+    <div class="value">50–61<small>GiB</small></div>
+    <div class="label">Memory used per 64 GiB card under load · no throttle reasons observed</div>
+  </div>
+</div>
+
+<footer>
+  <div>PixelML · DeepSeek-V4-Flash-Vision-Exp on four-card CMP 170HX · TP4 vision serve path · private endpoint</div>
+  <div class="right">Greedy text + real image gates pass · vision throughput benchmarks post-staging</div>
+</footer>
+</body>
+</html>
