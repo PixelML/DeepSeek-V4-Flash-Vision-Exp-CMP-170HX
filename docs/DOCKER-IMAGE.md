@@ -9,15 +9,25 @@ vision-capable image follows in a later release.
 
 ## Registry
 
+The package is public.
+
 ```
 ghcr.io/pixelml/club-170hx:vllm-deepseek-v4-sm80-20260902
 ghcr.io/pixelml/club-170hx:latest
 ```
 
-Pull command:
+Pushed digest: `sha256:90a1419e8ceaad3542153ef4e2a1d94a69b9af03cce7b0a1b267dd1dad55b9d7`
+
+Pull command (tag):
 
 ```bash
 docker pull ghcr.io/pixelml/club-170hx:vllm-deepseek-v4-sm80-20260902
+```
+
+Pull command (digest-pinned, for exact reproducibility):
+
+```bash
+docker pull ghcr.io/pixelml/club-170hx@sha256:90a1419e8ceaad3542153ef4e2a1d94a69b9af03cce7b0a1b267dd1dad55b9d7
 ```
 
 ## Source lineage
