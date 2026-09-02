@@ -1,0 +1,187 @@
+{
+  "phase": "concurrency_ladder",
+  "utc": "2026-09-02T11:49:27Z",
+  "max_tokens": 400,
+  "sampling": "temperature 0, ignore_eos",
+  "warmup_per_level": 1,
+  "measured_reps_per_level": 3,
+  "levels": [
+    {
+      "concurrency": 1,
+      "reps": [
+        {
+          "concurrency": 1,
+          "requests": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "success_rate": 1.0,
+          "total_completion_tokens": 400,
+          "wall_s": 2.789,
+          "aggregate_tok_s": 143.44,
+          "all_exactly_400": true,
+          "per_request_tok_s": {
+            "median": 143.49,
+            "min": 143.49,
+            "max": 143.49,
+            "all": [
+              143.49
+            ]
+          },
+          "per_request_wall_s": [
+            2.7877
+          ],
+          "errors": [],
+          "finish_reasons": [
+            "length"
+          ],
+          "gpu_samples": [
+            {
+              "t": "2026-09-02T11:49:30Z",
+              "gpu": [
+                "0, 64.18 W, 45, 87 %, 50872 MiB",
+                "1, 135.39 W, 46, 84 %, 49714 MiB",
+                "2, 64.70 W, 45, 57 %, 51256 MiB",
+                "3, 82.53 W, 44, 44 %, 60048 MiB"
+              ]
+            },
+            {
+              "t": "2026-09-02T11:49:32Z",
+              "gpu": [
+                "0, 97.48 W, 46, 86 %, 50872 MiB",
+                "1, 123.88 W, 46, 81 %, 49714 MiB",
+                "2, 84.68 W, 45, 61 %, 51256 MiB",
+                "3, 156.04 W, 45, 43 %, 60048 MiB"
+              ]
+            }
+          ]
+        },
+        {
+          "concurrency": 1,
+          "requests": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "success_rate": 1.0,
+          "total_completion_tokens": 400,
+          "wall_s": 2.609,
+          "aggregate_tok_s": 153.33,
+          "all_exactly_400": true,
+          "per_request_tok_s": {
+            "median": 153.35,
+            "min": 153.35,
+            "max": 153.35,
+            "all": [
+              153.35
+            ]
+          },
+          "per_request_wall_s": [
+            2.6084
+          ],
+          "errors": [],
+          "finish_reasons": [
+            "length"
+          ],
+          "gpu_samples": [
+            {
+              "t": "2026-09-02T11:49:35Z",
+              "gpu": [
+                "0, 40.44 W, 44, 0 %, 50872 MiB",
+                "1, 45.14 W, 43, 0 %, 49714 MiB",
+                "2, 40.75 W, 43, 0 %, 51256 MiB",
+                "3, 43.38 W, 42, 0 %, 60048 MiB"
+              ]
+            },
+            {
+              "t": "2026-09-02T11:49:37Z",
+              "gpu": [
+                "0, 103.59 W, 46, 85 %, 50872 MiB",
+                "1, 90.38 W, 46, 83 %, 49714 MiB",
+                "2, 116.49 W, 45, 61 %, 51256 MiB",
+                "3, 107.95 W, 45, 45 %, 60048 MiB"
+              ]
+            }
+          ]
+        },
+        {
+          "concurrency": 1,
+          "requests": 1,
+          "succeeded": 1,
+          "failed": 0,
+          "success_rate": 1.0,
+          "total_completion_tokens": 400,
+          "wall_s": 2.342,
+          "aggregate_tok_s": 170.8,
+          "all_exactly_400": true,
+          "per_request_tok_s": {
+            "median": 170.89,
+            "min": 170.89,
+            "max": 170.89,
+            "all": [
+              170.89
+            ]
+          },
+          "per_request_wall_s": [
+            2.3407
+          ],
+          "errors": [],
+          "finish_reasons": [
+            "length"
+          ],
+          "gpu_samples": [
+            {
+              "t": "2026-09-02T11:49:40Z",
+              "gpu": [
+                "0, 40.63 W, 45, 0 %, 50872 MiB",
+                "1, 45.23 W, 44, 0 %, 49714 MiB",
+                "2, 40.84 W, 44, 0 %, 51256 MiB",
+                "3, 43.96 W, 43, 0 %, 60048 MiB"
+              ]
+            },
+            {
+              "t": "2026-09-02T11:49:42Z",
+              "gpu": [
+                "0, 76.55 W, 46, 84 %, 50872 MiB",
+                "1, 110.18 W, 47, 82 %, 49714 MiB",
+                "2, 77.92 W, 46, 64 %, 51256 MiB",
+                "3, 138.86 W, 45, 46 %, 60048 MiB"
+              ]
+            }
+          ]
+        }
+      ],
+      "warmup": {
+        "concurrency": 1,
+        "requests": 1,
+        "succeeded": 1,
+        "failed": 0,
+        "success_rate": 1.0,
+        "total_completion_tokens": 400,
+        "wall_s": 2.812,
+        "aggregate_tok_s": 142.27,
+        "all_exactly_400": true,
+        "per_request_tok_s": {
+          "median": 142.33,
+          "min": 142.33,
+          "max": 142.33,
+          "all": [
+            142.33
+          ]
+        },
+        "per_request_wall_s": [
+          2.8104
+        ],
+        "errors": [],
+        "finish_reasons": [
+          "length"
+        ]
+      },
+      "status": "PASS",
+      "summary": {
+        "aggregate_tok_s_median": 153.33,
+        "aggregate_tok_s_min": 143.44,
+        "aggregate_tok_s_max": 170.8,
+        "per_request_tok_s_median_of_medians": 153.35,
+        "success_rate": 1.0
+      }
+    }
+  ]
+}

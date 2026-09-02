@@ -1,0 +1,60 @@
+{
+  "phase": "c1_text_plus_image",
+  "concurrency": 1,
+  "max_tokens": 400,
+  "sampling": "temperature 0, ignore_eos",
+  "warmup": {
+    "ok": true,
+    "wall_s": 6.6814,
+    "usage": {
+      "prompt_tokens": 143,
+      "total_tokens": 543,
+      "completion_tokens": 400,
+      "prompt_tokens_details": null
+    },
+    "finish_reason": "length",
+    "text_head": "Based on the image provided, here is a detailed description:\n\n**Visual Compositi"
+  },
+  "reps": [
+    {
+      "ok": true,
+      "wall_s": 7.312,
+      "usage": {
+        "prompt_tokens": 143,
+        "total_tokens": 543,
+        "completion_tokens": 400,
+        "prompt_tokens_details": null
+      },
+      "finish_reason": "length",
+      "text_head": "Based on the image provided, here is a detailed description:\n\n**Visual Compositi"
+    },
+    {
+      "ok": true,
+      "wall_s": 7.1202,
+      "usage": {
+        "prompt_tokens": 143,
+        "total_tokens": 543,
+        "completion_tokens": 400,
+        "prompt_tokens_details": null
+      },
+      "finish_reason": "length",
+      "text_head": "Based on the image provided, here is a detailed description:\n\n**Visual Compositi"
+    },
+    {
+      "ok": true,
+      "wall_s": 7.1669,
+      "usage": {
+        "prompt_tokens": 143,
+        "total_tokens": 543,
+        "completion_tokens": 400,
+        "prompt_tokens_details": null
+      },
+      "finish_reason": "length",
+      "text_head": "Based on the image provided, here is a detailed description:\n\n**Visual Compositi"
+    }
+  ],
+  "succeeded": 3,
+  "per_request_tok_s_median": 55.81,
+  "per_request_tok_s_min": 54.7,
+  "per_request_tok_s_max": 56.18
+}

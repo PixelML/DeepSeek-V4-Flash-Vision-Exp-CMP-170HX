@@ -1,0 +1,50 @@
+diff --git a/vllm/model_executor/models/registry.py b/vllm/model_executor/models/registry.py
+index db3464a44..5510e1b58 100644
+--- a/vllm/model_executor/models/registry.py
++++ b/vllm/model_executor/models/registry.py
+@@ -363,6 +363,10 @@ _MULTIMODAL_MODELS = {
+         "Cohere2VisionForConditionalGeneration",
+     ),
+     "Cosmos3ForConditionalGeneration": ("cosmos3", "Cosmos3ForConditionalGeneration"),
++    "DeepseekV4ForConditionalGeneration": (
++        "vllm.models.deepseek_v4",
++        "DeepseekV4ForConditionalGeneration",
++    ),
+     "Cosmos3EdgeForConditionalGeneration": (
+         "cosmos3_edge",
+         "Cosmos3EdgeForConditionalGeneration",
+diff --git a/vllm/models/deepseek_v4/__init__.py b/vllm/models/deepseek_v4/__init__.py
+index c7dd948f7..7346b509e 100644
+--- a/vllm/models/deepseek_v4/__init__.py
++++ b/vllm/models/deepseek_v4/__init__.py
+@@ -20,20 +20,30 @@ if current_platform.is_rocm():
+     )
+     from .amd.model import DeepseekV4ForCausalLM
+     from .amd.mtp import DeepSeekV4MTP
++    from .vl_stub import (  # type: ignore[assignment]
++        DeepseekV4ForConditionalGeneration,
++    )
+ elif current_platform.is_xpu():
+     from .xpu.dspark import DSparkDeepseekV4ForCausalLM  # type: ignore[assignment]
+     from .xpu.model import DeepseekV4ForCausalLM  # type: ignore[assignment]
+     from .xpu.mtp import DeepSeekV4MTP  # type: ignore[assignment]
++    from .vl_stub import (  # type: ignore[assignment]
++        DeepseekV4ForConditionalGeneration,
++    )
+ else:
+     from .nvidia.dspark import (  # type: ignore[assignment]
+         DSparkDeepseekV4ForCausalLM,
+     )
+     from .nvidia.model import DeepseekV4ForCausalLM  # type: ignore[assignment]
+     from .nvidia.mtp import DeepSeekV4MTP  # type: ignore[assignment]
++    from .nvidia.vl_model import (  # type: ignore[assignment]
++        DeepseekV4ForConditionalGeneration,
++    )
+ 
+ __all__ = [
+     "DSparkDeepseekV4ForCausalLM",
+     "DeepSeekV4MTP",
+     "DeepseekV4FP8Config",
+     "DeepseekV4ForCausalLM",
++    "DeepseekV4ForConditionalGeneration",
+ ]
