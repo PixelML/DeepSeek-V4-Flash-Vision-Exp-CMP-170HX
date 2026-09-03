@@ -6,6 +6,13 @@ This repository is the sanitized, reproducible evidence trail for that
 result: patches, launch scripts, and dated, receipted measurements for both
 the text-only and vision-enabled SM80 vLLM builds.
 
+[![CMP 170HX Vision benchmark video](docs/benchmark-video-poster.png)](docs/benchmark-video.mp4)
+
+The video is an 8-second mobile-readable publication cut. Its editable
+HyperFrames source and public data payload are in
+[`docs/benchmark-video/`](docs/benchmark-video/) and
+[`results/benchmark-video.json`](results/benchmark-video.json).
+
 ## Verified configuration
 
 | Component | Pin |
