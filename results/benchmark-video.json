@@ -1,0 +1,45 @@
+{
+  "title": "DeepSeek Vision · CMP 170HX",
+  "subtitle": "DeepSeek-V4-Flash-Vision-Exp · 4× GA100 · TP4 · SM80",
+  "eyebrow": "MEASURED · FUNCTIONAL VISION",
+  "headline": "VISION WORKS",
+  "status": "TP4 IMAGE PASS",
+  "scenes": [
+    {
+      "label": "01 · REAL IMAGE GATE",
+      "title": "Pixels reached the model",
+      "body": "Gradient fixture → pink, blue, green, yellow identified on a four-card TP4 stack.",
+      "fixture": {
+        "top": "#ff148f",
+        "bottom": "#74e86c",
+        "caption": "GRADIENT FIXTURE"
+      },
+      "metrics": [
+        { "value": "PASS", "label": "semantic image check" },
+        { "value": "44.1 GiB", "label": "resident / card" }
+      ]
+    },
+    {
+      "label": "02 · TEXT PATH REFERENCE",
+      "title": "Speed is not vision here",
+      "body": "Historical text-only baseline is context; the Vision path has no throughput claim.",
+      "metrics": [
+        { "value": "119–162", "label": "tok/s · text-only C1 ref" },
+        { "value": "37–41°C", "label": "vision load gate · no Xid/ECC" }
+      ]
+    }
+  ],
+  "summary": [
+    { "value": "10/10", "label": "image gates" },
+    { "value": "44.1 GiB", "label": "resident per card" },
+    { "value": "37–41°C", "label": "core temp at load gate" },
+    { "value": "TP4", "label": "SM80-compatible fallback" }
+  ],
+  "verdict": "DeepSeek Vision is functional on 4× GA100 CMP 170HX.",
+  "limitation": "Vision throughput is not measured; text-only speed is not a Vision claim.",
+  "footer": [
+    "REV 86f746b3 · FP8",
+    "4× GA100 · 64 GiB/card",
+    "FUNCTIONAL GATE: PASS"
+  ]
+}

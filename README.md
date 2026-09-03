@@ -2,6 +2,13 @@
 
 [![DeepSeek-V4-Flash-Vision-Exp real-image validation on four CMP 170HX cards](assets/deepseek-v4-vision-validation.png)](assets/deepseek-v4-vision-validation.mp4)
 
+[![CMP 170HX Vision benchmark video](docs/benchmark-video-poster.png)](docs/benchmark-video.mp4)
+
+The second card is the 8-second mobile-readable publication cut. Its editable
+HyperFrames source and public data payload are in
+[`docs/benchmark-video/`](docs/benchmark-video/) and
+[`results/benchmark-video.json`](results/benchmark-video.json).
+
 > **TL;DR — REAL IMAGE INPUT WORKS.** The pinned
 > `deepseek-ai/DeepSeek-V4-Flash-Vision-Exp` checkpoint (revision
 > `86f746b3`) produced valid text and image responses on four 64 GiB CMP 170HX
