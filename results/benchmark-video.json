@@ -1,9 +1,9 @@
 {
   "title": "DeepSeek Vision · CMP 170HX",
   "subtitle": "DeepSeek-V4-Flash-Vision-Exp · 4× GA100 · TP4 · SM80",
-  "eyebrow": "MEASURED · FUNCTIONAL VISION",
-  "headline": "VISION WORKS",
-  "status": "TP4 IMAGE PASS",
+  "eyebrow": "MEASURED · VISION + TEXT PATH",
+  "headline": "45.3 TOK/S + IMAGE",
+  "status": "C1 VISION PASS",
   "scenes": [
     {
       "label": "01 · REAL IMAGE GATE",
@@ -20,26 +20,26 @@
       ]
     },
     {
-      "label": "02 · TEXT PATH REFERENCE",
-      "title": "Speed is not vision here",
-      "body": "Historical text-only baseline is context; the Vision path has no throughput claim.",
+      "label": "02 · MEASURED VISION LADDER",
+      "title": "Real-image decode is measured",
+      "body": "Greedy 400-token requests; image path measured at C1 and C2, with text-only speed kept as a separate reference.",
       "metrics": [
-        { "value": "119–162", "label": "tok/s · text-only C1 ref" },
-        { "value": "37–41°C", "label": "vision load gate · no Xid/ECC" }
+        { "value": "45.3→78.2", "label": "C1 → C2 aggregate + image" },
+        { "value": "119 / 162", "label": "text-only median / peak tok/s" }
       ]
     }
   ],
   "summary": [
-    { "value": "10/10", "label": "image gates" },
-    { "value": "44.1 GiB", "label": "resident per card" },
-    { "value": "37–41°C", "label": "core temp at load gate" },
-    { "value": "TP4", "label": "SM80-compatible fallback" }
+    { "value": "45.3", "label": "tok/s aggregate · C1 + image" },
+    { "value": "78.2", "label": "tok/s aggregate · C2 + image" },
+    { "value": "119 / 162", "label": "text-only median / peak" },
+    { "value": "10/10", "label": "image rows matched" }
   ],
-  "verdict": "DeepSeek Vision is functional on 4× GA100 CMP 170HX.",
-  "limitation": "Vision throughput is not measured; text-only speed is not a Vision claim.",
+  "verdict": "Real-image Vision throughput is measured on 4× GA100 CMP 170HX.",
+  "limitation": "Text-only and text+image paths are separate measurements; do not compare them as one workload.",
   "footer": [
     "REV 86f746b3 · FP8",
-    "4× GA100 · 64 GiB/card",
-    "FUNCTIONAL GATE: PASS"
+    "4× GA100 · PP4 + DSpark k=6",
+    "VISION THROUGHPUT: MEASURED"
   ]
 }
