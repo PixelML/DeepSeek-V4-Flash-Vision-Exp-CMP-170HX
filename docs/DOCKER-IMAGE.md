@@ -4,6 +4,31 @@ This page describes the published container images that reproduce the
 DeepSeek-V4-Flash-Vision-Exp result on 4x NVIDIA CMP 170HX (SM80): a
 text-path image and a vision-path image.
 
+## Source of truth
+
+The vLLM source for these images now lives in one place:
+[`PixelML/sm80vllm`](https://github.com/PixelML/sm80vllm), branch
+`consolidate-sm80` (PR
+[#1](https://github.com/PixelML/sm80vllm/pull/1) against the `sm80`
+default branch). That branch merges the DeepSeek-V4 text patches, the
+vision port, and the safetensors F8_E8M0 overlay described below into
+one tree, with `docker/Dockerfile.sm80` as the build recipe and
+`docs/SM80.md` as the branch-level changelog and known-limits doc.
+
+The two images documented on this page (text-path and vision-path)
+were built before that consolidation and remain the reproducibility
+record for their measured results — their source lineage, digests, and
+receipts below are unchanged. A new image built from
+`docker/Dockerfile.sm80` on `consolidate-sm80` is tagged
+`dsv4-vision-sm80:consolidated` (image ID `25f0f4c879db`, not yet
+pushed to a registry). Its build-time import gate passed (`vllm`,
+`torch`, and the compiled custom ops all import cleanly); the fuller
+`deepseek_v4` model-class import check and a server boot test still
+need a free GPU runtime to run — see `docs/SM80.md` in `sm80vllm` for
+that follow-up command. Treat `sm80vllm` as the branch to patch or
+build from going forward; treat this page's two images as the pinned,
+already-measured artifacts.
+
 ## Text-path image
 
 This image replaces a from-source build that takes about 60 minutes.
